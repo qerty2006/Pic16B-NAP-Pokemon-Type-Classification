@@ -1,6 +1,7 @@
 # Local data and assets
 pokeapi_data/
 pokerogue_sprites/
+pokerogue_sprites_backup/
 
 # Python
 __pycache__/
