@@ -1,0 +1,21 @@
+# Local data and assets
+pokeapi_data/
+pokerogue_sprites/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
+
+# Output
+*.html
+!generation_type_distribution.html
