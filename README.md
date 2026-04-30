@@ -17,6 +17,7 @@ Run the setup script to download Pokémon sprite assets from the PokéRogue repo
 ```bash
 bash setup_assets.sh
 ```
+Once you have downloaded the sprites. Run the sprite-splitter file to get a folder of individual sprites.
 
 ## Usage
 
