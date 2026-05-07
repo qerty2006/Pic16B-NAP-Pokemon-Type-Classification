@@ -82,11 +82,13 @@ def main():
     print(f"Split — train: {len(train_idx)}, val: {len(val_idx)}")
 
     sampler = make_weighted_sampler(dataset, train_idx)
+    # num_workers=0 loads data in the main process — safe on Windows, lower RAM usage.
+    # Increase to 2-4 on Linux/Mac or if you have spare RAM for faster data loading.
     train_loader = DataLoader(
-        Subset(dataset, train_idx), batch_size=args.batch_size, sampler=sampler, num_workers=2
+        Subset(dataset, train_idx), batch_size=args.batch_size, sampler=sampler, num_workers=0
     )
     val_loader = DataLoader(
-        Subset(dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=2
+        Subset(dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=0
     )
 
     model = build_resnet18(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)

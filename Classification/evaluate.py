@@ -139,7 +139,10 @@ def main():
 
     dataset = PokemonSpriteDataset()
     _, _, test_idx = gen_stratified_split(dataset.index)
-    test_loader = DataLoader(Subset(dataset, test_idx), batch_size=32, shuffle=False, num_workers=2)
+    
+    # num_workers=0 loads data in the main process — safe on Windows, lower RAM usage.
+    # Increase to 2-4 on Linux/Mac or if you have spare RAM for faster data loading.
+    test_loader = DataLoader(Subset(dataset, test_idx), batch_size=32, shuffle=False, num_workers=0)
     print(f"Test set size: {len(test_idx)}")
 
     test_paths = [dataset.index[i][0] for i in test_idx]
