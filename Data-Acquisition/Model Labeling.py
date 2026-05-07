@@ -62,7 +62,7 @@ while counter<len(sprite_folder):
        sprite=str(file)
        ID=curr_folder.name.split("-")[0]
 
-#this has sprite location, base ID, and Sprite ID
+        #this has sprite location, base ID, and Sprite ID
        sprite_data.append({"Sprite": sprite, "ID": ID, "Sprite_ID": str(ID)+"_"+str(file.stem)})
     counter+=1
 
