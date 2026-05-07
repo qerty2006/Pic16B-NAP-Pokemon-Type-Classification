@@ -2,6 +2,7 @@
 pokeapi_data/
 pokerogue_sprites/
 pokerogue_sprites_backup/
+split_sprites/
 
 # Python
 __pycache__/

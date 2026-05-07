@@ -12,12 +12,17 @@ pip install -r requirements.txt
 
 ### 2. Download Sprites
 
-Run the setup script to download Pokémon sprite assets from the PokéRogue repository:
+Run the setup script to download Pokémon sprite assets from the PokéRogue repository (requires Git Bash on Windows):
 
 ```bash
-bash setup_assets.sh
+bash Data-Acquisition/setup_pokerogue_assets.sh
 ```
-Once you have downloaded the sprites. Run the sprite-splitter file to get a folder of individual sprites.
+
+Then split the sprite sheets into individual images:
+
+```bash
+python Data-Acquisition/sprite_splitter.py
+```
 
 ## Usage
 
@@ -36,6 +41,10 @@ python run_analysis.py
    ```bash
    python Data-Acquisition/pokeapi_data.py
    ```
+   > **Experimental:** A threaded version is available for faster downloads (~20x speedup). Re-run safe — skips completed entries and only fetches missing varieties. May occasionally hit PokeAPI rate limits; failed entries are printed but won't stop the run.
+   > ```bash
+   > python Data-Acquisition/pokeapi_data_threaded.py
+   > ```
 
 2. **Run Visualizations**:
    Generate the interactive HTML plots:
