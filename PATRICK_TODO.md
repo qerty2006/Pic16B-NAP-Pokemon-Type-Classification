@@ -88,8 +88,31 @@ Classification/
 
 ---
 
+## 7. HTML Visuals for Presentation (PRIORITY — needed tomorrow)
+
+Each stage of the pipeline should produce a self-contained HTML file that can be opened in a browser for the presentation. Status:
+
+| Stage | Script | HTML output | Done? |
+|---|---|---|---|
+| Data distribution | `run_analysis.py` | `generation_type_distribution.html` | ✅ |
+| Baseline comparison | `baselines.py` | `Classification/results/baselines_comparison.html` | ✅ |
+| Baseline confusion matrices | `baselines.py` | `Classification/results/baselines_confusion_matrices.html` | ✅ |
+| Baseline mistake gallery | `baselines.py` | `Classification/results/mistakes_<Model>.html` | ✅ |
+| CNN training curves | `train.py` | `Classification/results/training_curves.html` | ❌ needs building |
+| CNN confusion matrix | `evaluate.py` | *(saved as .npy — needs HTML export)* | ❌ needs building |
+| CNN mistake gallery | `evaluate.py` | `Classification/results/mistakes_CNN.html` | ✅ |
+| Baseline vs CNN comparison | `evaluate.py` | *(not built)* | ❌ needs building |
+
+**What to build before presentation:**
+- `train.py` — save loss/accuracy/F1 per epoch to a plotly HTML (training curves)
+- `evaluate.py` — export confusion matrix as interactive plotly heatmap HTML
+- `evaluate.py` — add a bar chart comparing best baseline vs CNN on all metrics
+
+---
+
 ## Notes
 - Pixel sprites are small (~96x96 or smaller) — ResNet18 is fine, no need for anything bigger
 - The greyscale ablation is important for the paper's argument about whether design is intentional
+- CNN uses full RGB (3-channel) after alpha compositing sprites onto white — color IS part of what it learns
 - Consider using all animation frames per Pokemon as separate training samples (~10x more data, helps rare types)
 - Claude Code can help you write any of this — just open the project and ask

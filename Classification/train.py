@@ -1,4 +1,5 @@
 import argparse
+import csv
 import sys
 from pathlib import Path
 
@@ -101,12 +102,22 @@ def main():
     CHECKPOINT_DIR.mkdir(exist_ok=True)
     best_f1, best_epoch = 0.0, 0
 
+    csv_path = CHECKPOINT_DIR / "training_curves.csv"
+    csv_fields = ["epoch", "phase", "loss", "accuracy", "f1", "precision", "recall"]
+    with open(csv_path, "w", newline="") as f:
+        csv.DictWriter(f, fieldnames=csv_fields).writeheader()
+
     for epoch in tqdm(range(1, args.epochs + 1), desc="Epochs"):
         train_m = run_epoch(model, train_loader, criterion, optimizer, device, train=True)
         val_m   = run_epoch(model, val_loader,   criterion, optimizer, device, train=False)
 
         log(epoch, args.epochs, "train", train_m)
         log(epoch, args.epochs, "val",   val_m)
+
+        with open(csv_path, "a", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=csv_fields)
+            writer.writerow({"epoch": epoch, "phase": "train", **train_m})
+            writer.writerow({"epoch": epoch, "phase": "val",   **val_m})
 
         scheduler.step(val_m["loss"])
 
