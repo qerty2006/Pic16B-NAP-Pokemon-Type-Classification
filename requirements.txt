@@ -1,5 +1,20 @@
+# Core
 requests
 tqdm
-plotly
 numpy
 Pillow
+pandas
+
+# Visualization
+plotly
+
+# ML / Classification
+scikit-learn
+
+# PyTorch — install separately with the right CUDA build for your machine.
+# CUDA 12.6 (recommended, modern NVIDIA GPUs):
+#   pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+# CPU-only fallback:
+#   pip install torch torchvision
+torch
+torchvision
