@@ -2,6 +2,20 @@
 
 ## Setup
 
+### 0. Install Git Hooks (run once after cloning)
+
+Installs a pre-push safety check that automatically runs before every `git push` and aborts if any large data files (sprites, pokeapi data, checkpoints, results) are accidentally tracked. If it catches something, it tells you exactly which files to untrack.
+
+```bash
+bash install_hooks.sh
+```
+
+To manually untrack a file it catches:
+```bash
+git rm -r --cached <file>
+git commit -m "Remove accidentally tracked file"
+```
+
 ### 1. Requirements
 
 Ensure you have Python 3.10+ installed. Install the necessary dependencies:

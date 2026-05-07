@@ -1,4 +1,6 @@
 import sys
+import base64
+import io
 from pathlib import Path
 
 import numpy as np
@@ -6,6 +8,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
+from PIL import Image
 from sklearn.metrics import (
     accuracy_score, f1_score, precision_score, recall_score,
     roc_auc_score, confusion_matrix,
@@ -78,6 +81,48 @@ def print_confusion_matrix(y_true, y_pred):
     return cm
 
 
+def img_to_b64(path):
+    from dataset import rgba_to_rgb
+    img = rgba_to_rgb(Image.open(path).convert("RGBA")).resize((96, 96))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30):
+    mistakes = [
+        (i, y_true[i], y_pred[i], y_probs[i][y_pred[i]])
+        for i in range(len(y_true)) if y_true[i] != y_pred[i]
+    ]
+    # sort by model confidence descending — most confidently wrong first
+    mistakes.sort(key=lambda x: x[3], reverse=True)
+    sample = mistakes[:n]
+
+    cards = []
+    for i, true_label, pred_label, confidence in sample:
+        b64 = img_to_b64(test_paths[i])
+        true_type = TYPES[true_label]
+        pred_type = TYPES[pred_label]
+        cards.append(f"""
+        <div style="display:inline-block;margin:8px;text-align:center;
+                    border:2px solid #e55;border-radius:8px;padding:6px;background:#1a1a1a">
+          <img src="data:image/png;base64,{b64}" width="96" height="96"
+               style="image-rendering:pixelated"/><br>
+          <span style="color:#4af;font-size:12px">True: {true_type}</span><br>
+          <span style="color:#f66;font-size:12px">Pred: {pred_type}</span><br>
+          <span style="color:#aaa;font-size:11px">Conf: {confidence:.2%}</span>
+        </div>""")
+
+    html = f"""<!DOCTYPE html><html><body style="background:#111;color:#eee;font-family:sans-serif">
+    <h2 style="padding:12px">CNN — {len(mistakes)} mistakes (top {len(sample)} by confidence)</h2>
+    <div style="padding:12px">{"".join(cards)}</div>
+    </body></html>"""
+
+    out = RESULTS_DIR / "mistakes_CNN.html"
+    out.write_text(html, encoding="utf-8")
+    print(f"Saved: {out}")
+
+
 def main():
     if not CHECKPOINT_PATH.exists():
         print(f"No checkpoint found at {CHECKPOINT_PATH}. Run train.py first.")
@@ -97,17 +142,20 @@ def main():
     test_loader = DataLoader(Subset(dataset, test_idx), batch_size=32, shuffle=False, num_workers=2)
     print(f"Test set size: {len(test_idx)}")
 
+    test_paths = [dataset.index[i][0] for i in test_idx]
     y_true, y_pred, y_probs = collect_predictions(model, test_loader, device)
 
     print_summary(y_true, y_pred, y_probs)
     cm = print_confusion_matrix(y_true, y_pred)
 
-    # save outputs for Ajmain's visualizations
     RESULTS_DIR.mkdir(exist_ok=True)
     np.save(RESULTS_DIR / "confusion_matrix.npy", cm)
     np.save(RESULTS_DIR / "y_true.npy", y_true)
     np.save(RESULTS_DIR / "y_pred.npy", y_pred)
     np.save(RESULTS_DIR / "y_probs.npy", y_probs)
+
+    print("\nGenerating mistake gallery...")
+    save_mistake_examples(y_true, y_pred, y_probs, test_paths)
     print(f"\nResults saved to {RESULTS_DIR}/")
 
 
