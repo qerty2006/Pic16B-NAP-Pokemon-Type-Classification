@@ -14,6 +14,7 @@ from sklearn.metrics import (
 
 sys.path.insert(0, str(Path(__file__).parent))
 from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, get_generation, PRED_THRESHOLD
+import generate_report
 from cnn_model import build_efficientnet_b0
 
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints" / "best.pt"
@@ -191,6 +192,7 @@ def main():
     print("\nGenerating mistake gallery...")
     save_mistake_examples(y_true, y_pred, y_probs, test_paths, n_test=len(test_idx))
     print(f"\nResults saved to {RESULTS_DIR}/")
+    generate_report.main()
 
 
 if __name__ == "__main__":

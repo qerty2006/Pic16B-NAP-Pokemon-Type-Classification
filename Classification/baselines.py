@@ -18,6 +18,7 @@ from plotly.subplots import make_subplots
 
 sys.path.insert(0, str(Path(__file__).parent))
 from dataset import _build_index, TYPES, rgba_to_rgb, gen_stratified_split
+import generate_report
 
 IMG_SIZE = 64
 N_PCA = 50
@@ -202,11 +203,18 @@ def main():
         all_cms[name] = confusion_matrix(y_test, preds, labels=list(range(len(TYPES))))
         save_mistake_examples(name, y_test, preds, test_paths, y_test_multihot)
 
+    import json
+    metrics_out = RESULTS_DIR / "baselines_metrics.json"
+    with open(metrics_out, "w") as f:
+        json.dump({k: {mk: float(mv) for mk, mv in v.items()} for k, v in all_metrics.items()}, f, indent=2)
+    print(f"Saved: {metrics_out}")
+
     print("\nSaving visualizations...")
     save_comparison_chart(all_metrics)
     save_confusion_matrices(all_cms)
 
     print("\nDone.")
+    generate_report.main()
 
 
 if __name__ == "__main__":

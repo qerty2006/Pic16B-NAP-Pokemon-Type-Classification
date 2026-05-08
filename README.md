@@ -1,6 +1,6 @@
 # Pokémon Type Classification — PIC16B NAP Project
 
-Classifies Pokémon types from sprite images using traditional ML baselines and a fine-tuned ResNet18 CNN. Sprite data sourced from PokéRogue; type labels from PokéAPI.
+Classifies Pokémon types from sprite images using traditional ML baselines and a fine-tuned EfficientNet-B0 CNN. Supports dual-type prediction — the model predicts both types for dual-type Pokémon. Sprite data sourced from PokéRogue; type labels from PokéAPI.
 
 ---
 
@@ -22,10 +22,11 @@ pip install -r requirements.txt
 bash Data-Acquisition/setup_pokerogue_assets.sh
 python Data-Acquisition/sprite_splitter.py
 python Data-Acquisition/pokeapi_data.py
-python Classification/dataset.py   # sanity check
+python Classification/dataset.py      # sanity check
 python Classification/baselines.py
 python Classification/train.py --epochs 30
 python Classification/evaluate.py
+python Classification/generate_report.py  # results/index.html
 ```
 
 ---
@@ -124,13 +125,19 @@ Verifies the full training pipeline before committing to a long run.
 ```bash
 python Classification/train.py --epochs 30
 ```
-Fine-tunes ResNet18 (~20 min on CPU). Saves the best checkpoint by validation F1 to `Classification/checkpoints/best.pt`.
+Fine-tunes EfficientNet-B0 on 224×224 sprites using `BCEWithLogitsLoss` for multi-label type prediction. Saves the best checkpoint by validation F1 to `Classification/checkpoints/best.pt`.
 
 ### 4. Evaluate
 ```bash
 python Classification/evaluate.py
 ```
-Loads the best checkpoint and prints full metrics. Saves results and a mistake gallery to `Classification/results/`.
+Loads the best checkpoint and prints full metrics. Uses top-k prediction — the model is told how many types each Pokémon has and predicts exactly that many. Saves results and a mistake gallery to `Classification/results/`.
+
+### 5. Generate Report
+```bash
+python Classification/generate_report.py
+```
+Combines CNN and baseline results into a single `Classification/results/index.html` — comparison table across all models, explanation of how each model works, and links to all output galleries. Requires both `evaluate.py` and `baselines.py` to have been run first.
 
 ---
 
@@ -152,8 +159,9 @@ All outputs saved to `Classification/results/`.
 
 | File | Description |
 |---|---|
+| `index.html` | Single-page report — model comparison table, how each model works, links to all outputs. |
 | `baselines_comparison.html` | Grouped bar chart comparing all three baseline models across all metrics. |
 | `baselines_confusion_matrices.html` | Side-by-side confusion matrix heatmaps for each baseline. Rows = true type, cols = predicted. |
-| `mistakes_<Model>.html` | Gallery of misclassified sprites — true type vs. predicted type for each error. CNN version sorted by model confidence. |
-| `confusion_matrix.npy` | Raw confusion matrix from CNN evaluation (passed to Ajmain for visualizations). |
-| `y_true.npy` / `y_pred.npy` / `y_probs.npy` | Ground truth, predictions, and softmax probabilities from CNN test set. |
+| `baselines_metrics.json` | Raw baseline metrics (accuracy, F1, precision, recall) — read by `generate_report.py`. |
+| `mistakes_<Model>.html` | Gallery of misclassified sprites. Red border = fully wrong, orange = partial (1 of 2 types correct for dual-type Pokémon). CNN version sorted by confidence. |
+| `y_true.npy` / `y_pred.npy` / `y_probs.npy` | Ground truth (multi-hot), predictions (multi-hot), and sigmoid probabilities from CNN test set. |
