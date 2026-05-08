@@ -1,55 +1,48 @@
 import json
-import os
 from PIL import Image
 from pathlib import Path
+from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-#PS: Please keep this py file on the same dir as the pokerogue_sprites folder
 base_dir = Path(__file__).parent
-sprite_sheets='pokerogue_sprites'
+root_dir = base_dir.parent
 
-sprites_folder = base_dir / "pokerogue_sprites"
-output_folder = base_dir/ ("split_sprites")
+# check Data-Acquisition/ first, then project root
+_candidates = [base_dir / "pokerogue_sprites", root_dir / "pokerogue_sprites"]
+sprites_folder = next((p for p in _candidates if p.exists()), _candidates[0])
+output_folder = sprites_folder.parent / "split_sprites"
 
-#setting up paths and loading data
-for json_path in sprites_folder.glob("*.json"):
 
-    image_path = json_path.with_suffix(".png")
+def process_sheet(json_path):
+    output_dir = output_folder / json_path.stem
+    if output_dir.exists():
+        return
 
-    with open(json_path, 'r') as file:
-        data = json.load(file)
+    with open(json_path, 'r') as f:
+        data = json.load(f)
 
-    # open sprite sheet
-    sprite_sheet = Image.open(image_path)
-
-    # Creates a folder with sprites for each Pokemon
-    output_dir = output_folder/json_path.stem
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    # Access the frames list from textures
     if 'textures' in data:
         frames = data['textures'][0]['frames']
-
-    # If 'textures' isn't there, access frames directly
     elif 'frames' in data:
         frames = data['frames']
+    else:
+        tqdm.write(f"Skipping {json_path.name}: no frames found")
+        return
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    sprite_sheet = Image.open(json_path.with_suffix(".png"))
 
     for sprite in frames:
-        name = sprite['filename']
         f = sprite['frame']
+        sprite_img = sprite_sheet.crop((f['x'], f['y'], f['x'] + f['w'], f['y'] + f['h']))
+        sprite_img.save(output_dir / sprite['filename'])
 
-        # Cropping boundaries
-        left = f['x']
-        top = f['y']
-        right = left + f['w']
-        bottom = top + f['h']
 
-        # Crop the image
-        sprite_img = sprite_sheet.crop((left, top, right, bottom))
+json_files = list(sprites_folder.glob("*.json"))
 
-        # Save the individual sprite
-        sprite_img.save(os.path.join(output_dir, name))
-    print(f"Saved: {json_path}")
-
+with ThreadPoolExecutor() as executor:
+    futures = {executor.submit(process_sheet, p): p for p in json_files}
+    for _ in tqdm(as_completed(futures), total=len(futures), desc="Splitting sprites"):
+        pass
 
 print("Done! Check the 'split_sprites' folder.")

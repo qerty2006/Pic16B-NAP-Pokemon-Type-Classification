@@ -1,16 +1,28 @@
+# Claude Code
+.claude/
+PATRICK_TODO*
+
 # Local data and assets
 pokeapi_data/
 pokerogue_sprites/
 pokerogue_sprites_backup/
+split_sprites/
+Classification/checkpoints/
+Classification/results/
+Classification/.index_cache.pkl
 
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 venv/
 .venv/
 env/
 .env/
+
+# Conda environment
+.conda/
 
 # IDEs
 .vscode/
