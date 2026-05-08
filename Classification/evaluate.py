@@ -15,7 +15,7 @@ from sklearn.metrics import (
 )
 
 sys.path.insert(0, str(Path(__file__).parent))
-from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split
+from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, get_generation
 from cnn_model import build_resnet18
 
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints" / "best.pt"
@@ -89,6 +89,24 @@ def img_to_b64(path):
     return base64.b64encode(buf.getvalue()).decode()
 
 
+def print_per_gen_metrics(y_true, y_pred, test_paths):
+    from collections import defaultdict
+    gen_data = defaultdict(lambda: ([], []))
+    for i, path in enumerate(test_paths):
+        gen = get_generation(int(Path(path).parent.name))
+        gen_data[gen][0].append(y_true[i])
+        gen_data[gen][1].append(y_pred[i])
+
+    print("\n=== Per-Generation Metrics ===")
+    print(f"  {'Gen':<6} {'N':>4} {'Acc':>6} {'F1':>6}")
+    print(f"  {'-'*26}")
+    for gen in sorted(gen_data):
+        yt, yp = np.array(gen_data[gen][0]), np.array(gen_data[gen][1])
+        acc = accuracy_score(yt, yp)
+        f1  = f1_score(yt, yp, average="macro", zero_division=0)
+        print(f"  Gen {gen:<2}  {len(yt):>4} {acc:>6.4f} {f1:>6.4f}")
+
+
 def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30):
     mistakes = [
         (i, y_true[i], y_pred[i], y_probs[i][y_pred[i]])
@@ -149,6 +167,7 @@ def main():
     y_true, y_pred, y_probs = collect_predictions(model, test_loader, device)
 
     print_summary(y_true, y_pred, y_probs)
+    print_per_gen_metrics(y_true, y_pred, test_paths)
     cm = print_confusion_matrix(y_true, y_pred)
 
     RESULTS_DIR.mkdir(exist_ok=True)
