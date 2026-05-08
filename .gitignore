@@ -1,3 +1,7 @@
+# Claude Code
+.claude/
+PATRICK_TODO*
+
 # Local data and assets
 pokeapi_data/
 pokerogue_sprites/

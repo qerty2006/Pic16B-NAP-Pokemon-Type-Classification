@@ -22,6 +22,8 @@ SPRITES_DIR = PROJECT_ROOT / "Data-Acquisition" / "split_sprites"
 POKEAPI_DIR = PROJECT_ROOT / "pokeapi_data"
 INDEX_CACHE = Path(__file__).parent / ".index_cache.pkl"
 
+CACHE_VERSION = 2  # bumped for multi-label (multi-hot) labels
+
 # National Dex generation cut-offs
 GEN_RANGES = [
     (1, 151), (152, 251), (252, 386), (387, 493),
@@ -30,7 +32,7 @@ GEN_RANGES = [
 
 # ImageNet normalization — required for pretrained ResNet
 DEFAULT_TRANSFORM = transforms.Compose([
-    transforms.Resize((96, 96)),
+    transforms.Resize((224, 224)),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
@@ -72,7 +74,7 @@ def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
 
 
 def _fetch_entry(sprite_folder, pokeapi_by_id):
-    """Load one Pokemon's index entry. Returns (path, label) or None."""
+    """Load one Pokemon's index entry. Returns (path, multi_hot_label) or None."""
     pokemon_id = int(sprite_folder.name)
     if pokemon_id > 1025:
         return None
@@ -92,25 +94,35 @@ def _fetch_entry(sprite_folder, pokeapi_by_id):
     types = sorted(data.get("types", []), key=lambda x: x["slot"])
     if not types:
         return None
-    type1 = types[0]["type"]["name"]
-    if type1 not in TYPE_TO_IDX:
+
+    label = np.zeros(len(TYPES), dtype=np.float32)
+    has_valid = False
+    for t in types:
+        name = t["type"]["name"]
+        if name in TYPE_TO_IDX:
+            label[TYPE_TO_IDX[name]] = 1.0
+            has_valid = True
+    if not has_valid:
         return None
 
     frames = sorted(sprite_folder.glob("*.png"))
     if not frames:
         return None
 
-    return (frames[0], TYPE_TO_IDX[type1])
+    return (frames[0], label)
 
 
 def _build_index(use_cache=True):
-    """Returns list of (image_path, type1_idx) for all base-form Pokemon (IDs 1-1025).
+    """Returns list of (image_path, multi_hot_label) for all base-form Pokemon (IDs 1-1025).
     Caches result to disk — delete .index_cache.pkl if pokeapi_data changes.
     """
     if use_cache and INDEX_CACHE.exists():
-        print("Loading index from cache...")
         with open(INDEX_CACHE, "rb") as f:
-            return pickle.load(f)
+            cached = pickle.load(f)
+        if isinstance(cached, dict) and cached.get("version") == CACHE_VERSION:
+            print("Loading index from cache...")
+            return cached["index"]
+        print("Cache format changed, rebuilding index...")
 
     pokeapi_by_id = {}
     for folder in POKEAPI_DIR.iterdir():
@@ -138,7 +150,7 @@ def _build_index(use_cache=True):
 
     if use_cache:
         with open(INDEX_CACHE, "wb") as f:
-            pickle.dump(index, f)
+            pickle.dump({"version": CACHE_VERSION, "index": index}, f)
 
     return index
 
@@ -155,7 +167,7 @@ class PokemonSpriteDataset(Dataset):
         img_path, label = self.index[idx]
         img = rgba_to_rgb(Image.open(img_path).convert("RGBA"))
         img = self.transform(img)
-        return img, torch.tensor(label, dtype=torch.long)
+        return img, torch.tensor(label, dtype=torch.float32)
 
     @staticmethod
     def num_classes():
@@ -163,7 +175,6 @@ class PokemonSpriteDataset(Dataset):
 
 
 if __name__ == "__main__":
-    from collections import Counter
     from torch.utils.data import DataLoader, Subset
 
     print("Loading dataset...")
@@ -171,10 +182,14 @@ if __name__ == "__main__":
     print(f"Total samples: {len(ds)}")
 
     print("\nCounting type distribution...")
-    label_counts = Counter(label for _, label in tqdm(ds.index, desc="Counting"))
-    print("\nType distribution:")
+    type_counts = np.zeros(len(TYPES), dtype=int)
+    for _, label in tqdm(ds.index, desc="Counting"):
+        type_counts += label.astype(int)
+    dual_count = sum(1 for _, label in ds.index if label.sum() == 2)
+    print(f"\nDual-type Pokemon: {dual_count} / {len(ds.index)}")
+    print("\nType distribution (Pokemon with this type):")
     for t, idx in sorted(TYPE_TO_IDX.items()):
-        print(f"  {t:<12} {label_counts[idx]:>4}")
+        print(f"  {t:<12} {type_counts[idx]:>4}")
 
     print("\nComputing split...")
     train_idx, val_idx, test_idx = gen_stratified_split(ds.index)
@@ -183,4 +198,5 @@ if __name__ == "__main__":
     print("\nLoading one batch...")
     loader = DataLoader(Subset(ds, train_idx[:8]), batch_size=4)
     imgs, labels = next(iter(loader))
-    print(f"Batch shape: {imgs.shape}  Labels: {labels.tolist()}")
+    print(f"Batch shape: {imgs.shape}  Labels shape: {labels.shape}")
+    print(f"Example label (multi-hot): {labels[0].tolist()}")

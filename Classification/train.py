@@ -12,16 +12,20 @@ from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).parent))
 from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split
-from cnn_model import build_resnet18
+from cnn_model import build_efficientnet_b0
 
 CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
 
 
 def make_weighted_sampler(dataset, train_idx):
-    labels = np.array([dataset.index[i][1] for i in train_idx])
-    class_counts = np.bincount(labels, minlength=len(TYPES))
+    labels = np.array([dataset.index[i][1] for i in train_idx])  # (N, 18) multi-hot
+    class_counts = labels.sum(axis=0)
     class_counts = np.where(class_counts == 0, 1, class_counts)
-    weights = 1.0 / class_counts[labels]
+    # weight each sample by its rarest type to counteract class imbalance
+    weights = np.array([
+        (1.0 / class_counts[labels[i].astype(bool)]).max() if labels[i].any() else 1.0
+        for i in range(len(labels))
+    ])
     return WeightedRandomSampler(weights.tolist(), num_samples=len(weights), replacement=True)
 
 
@@ -43,13 +47,16 @@ def run_epoch(model, loader, criterion, optimizer, device, train=True):
                 optimizer.step()
 
             total_loss += loss.item() * len(labels)
-            all_preds.extend(logits.argmax(1).cpu().tolist())
-            all_labels.extend(labels.cpu().tolist())
+            preds = (torch.sigmoid(logits) > 0.5).cpu().int().numpy()
+            all_preds.append(preds)
+            all_labels.append(labels.cpu().int().numpy())
 
+    all_preds = np.vstack(all_preds)
+    all_labels = np.vstack(all_labels)
     n = len(all_labels)
     metrics = {
         "loss":      total_loss / n,
-        "accuracy":  accuracy_score(all_labels, all_preds),
+        "accuracy":  accuracy_score(all_labels, all_preds),   # exact match
         "f1":        f1_score(all_labels, all_preds, average="macro", zero_division=0),
         "precision": precision_score(all_labels, all_preds, average="macro", zero_division=0),
         "recall":    recall_score(all_labels, all_preds, average="macro", zero_division=0),
@@ -92,17 +99,17 @@ def main():
         Subset(dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=0
     )
 
-    model = build_resnet18(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
+    model = build_efficientnet_b0(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
     optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCEWithLogitsLoss()
 
     CHECKPOINT_DIR.mkdir(exist_ok=True)
     best_f1, best_epoch = 0.0, 0
 
-    csv_path = CHECKPOINT_DIR / "training_curves.csv"
+    csv_path = Path(__file__).parent / "log.csv"
     csv_fields = ["epoch", "phase", "loss", "accuracy", "f1", "precision", "recall"]
     with open(csv_path, "w", newline="") as f:
         csv.DictWriter(f, fieldnames=csv_fields).writeheader()
