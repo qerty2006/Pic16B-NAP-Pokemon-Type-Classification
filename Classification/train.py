@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).parent))
-from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split
+from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, PRED_THRESHOLD
 from cnn_model import build_efficientnet_b0
 
 CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
@@ -47,7 +47,7 @@ def run_epoch(model, loader, criterion, optimizer, device, train=True):
                 optimizer.step()
 
             total_loss += loss.item() * len(labels)
-            preds = (torch.sigmoid(logits) > 0.5).cpu().int().numpy()
+            preds = (torch.sigmoid(logits) > PRED_THRESHOLD).cpu().int().numpy()
             all_preds.append(preds)
             all_labels.append(labels.cpu().int().numpy())
 

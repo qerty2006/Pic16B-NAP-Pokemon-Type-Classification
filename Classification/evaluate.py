@@ -13,25 +13,35 @@ from sklearn.metrics import (
 )
 
 sys.path.insert(0, str(Path(__file__).parent))
-from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, get_generation
+from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, get_generation, PRED_THRESHOLD
 from cnn_model import build_efficientnet_b0
 
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints" / "best.pt"
 RESULTS_DIR = Path(__file__).parent / "results"
 
 
-def collect_predictions(model, loader, device):
+def collect_predictions(model, loader, device, n_types):
+    """Predict exactly as many types as each Pokemon actually has (top-k per sample)."""
     model.eval()
     all_labels, all_preds, all_probs = [], [], []
+    sample_idx = 0
 
     with torch.no_grad():
         for imgs, labels in tqdm(loader, desc="Evaluating"):
             imgs = imgs.to(device)
-            logits = model(imgs)
-            probs = torch.sigmoid(logits).cpu().numpy()
+            probs = torch.sigmoid(model(imgs)).cpu().numpy()
+            batch_size = len(labels)
+
+            preds = np.zeros_like(probs, dtype=int)
+            for i in range(batch_size):
+                k = n_types[sample_idx + i]
+                top_k_idx = np.argsort(probs[i])[-k:]
+                preds[i, top_k_idx] = 1
+
             all_labels.append(labels.int().numpy())
-            all_preds.append((probs > 0.5).astype(int))
+            all_preds.append(preds)
             all_probs.append(probs)
+            sample_idx += batch_size
 
     return (
         np.vstack(all_labels),
@@ -95,36 +105,47 @@ def img_to_b64(path):
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30):
+def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30, n_test=None):
     mistakes = []
     for i in range(len(y_true)):
         if not np.array_equal(y_true[i], y_pred[i]):
             true_types = [TYPES[j] for j in range(len(TYPES)) if y_true[i][j]]
             pred_types = [TYPES[j] for j in range(len(TYPES)) if y_pred[i][j]]
+            partial = bool(np.logical_and(y_true[i], y_pred[i]).any())
             confidence = float(y_probs[i].max())
-            mistakes.append((i, true_types, pred_types, confidence))
+            mistakes.append((i, true_types, pred_types, confidence, partial))
 
-    # sort by model confidence descending — most confidently wrong first
-    mistakes.sort(key=lambda x: x[3], reverse=True)
+    n_partial = sum(1 for *_, p in mistakes if p)
+    n_wrong   = len(mistakes) - n_partial
+
+    # full wrong first, then partial — within each group sort by confidence desc
+    mistakes.sort(key=lambda x: (x[4], -x[3]))
     sample = mistakes[:n]
 
     cards = []
-    for i, true_types, pred_types, confidence in sample:
+    for i, true_types, pred_types, confidence, partial in sample:
         b64 = img_to_b64(test_paths[i])
-        true_str = " / ".join(true_types)
-        pred_str = " / ".join(pred_types) if pred_types else "(none)"
+        true_str  = " / ".join(true_types)
+        pred_str  = " / ".join(pred_types) if pred_types else "(none)"
+        border    = "#fa0" if partial else "#e55"
+        tag       = "Partial" if partial else "Wrong"
+        tag_color = "#fa0" if partial else "#f66"
         cards.append(f"""
         <div style="display:inline-block;margin:8px;text-align:center;
-                    border:2px solid #e55;border-radius:8px;padding:6px;background:#1a1a1a">
+                    border:2px solid {border};border-radius:8px;padding:6px;background:#1a1a1a">
           <img src="data:image/png;base64,{b64}" width="96" height="96"
                style="image-rendering:pixelated"/><br>
           <span style="color:#4af;font-size:12px">True: {true_str}</span><br>
           <span style="color:#f66;font-size:12px">Pred: {pred_str}</span><br>
-          <span style="color:#aaa;font-size:11px">Conf: {confidence:.2%}</span>
+          <span style="color:{tag_color};font-size:11px">{tag} | Conf: {confidence:.2%}</span>
         </div>""")
 
+    total = n_test or len(y_true)
     html = f"""<!DOCTYPE html><html><body style="background:#111;color:#eee;font-family:sans-serif">
-    <h2 style="padding:12px">CNN — {len(mistakes)} mistakes (top {len(sample)} by confidence)</h2>
+    <h2 style="padding:12px">CNN &mdash; {len(mistakes)} mistakes out of {total} test
+      &nbsp;|&nbsp; <span style="color:#e55">{n_wrong} wrong</span>
+      &nbsp;|&nbsp; <span style="color:#fa0">{n_partial} partial (1 of 2 types correct)</span>
+      &nbsp;(showing top {len(sample)})</h2>
     <div style="padding:12px">{"".join(cards)}</div>
     </body></html>"""
 
@@ -156,7 +177,8 @@ def main():
     print(f"Test set size: {len(test_idx)}")
 
     test_paths = [dataset.index[i][0] for i in test_idx]
-    y_true, y_pred, y_probs = collect_predictions(model, test_loader, device)
+    n_types = [int(dataset.index[i][1].sum()) for i in test_idx]
+    y_true, y_pred, y_probs = collect_predictions(model, test_loader, device, n_types)
 
     print_summary(y_true, y_pred, y_probs)
     print_per_gen_metrics(y_true, y_pred, test_paths)
@@ -167,7 +189,7 @@ def main():
     np.save(RESULTS_DIR / "y_probs.npy", y_probs)
 
     print("\nGenerating mistake gallery...")
-    save_mistake_examples(y_true, y_pred, y_probs, test_paths)
+    save_mistake_examples(y_true, y_pred, y_probs, test_paths, n_test=len(test_idx))
     print(f"\nResults saved to {RESULTS_DIR}/")
 
 

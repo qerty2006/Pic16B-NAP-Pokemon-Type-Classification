@@ -4,7 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-csv_file = sys.argv[1] if len(sys.argv) > 1 else "log.csv"
+csv_file = sys.argv[1] if len(sys.argv) > 1 else Path(__file__).parent / "log.csv"
 df = pd.read_csv(csv_file)
 
 train = df[df["phase"] == "train"].set_index("epoch")

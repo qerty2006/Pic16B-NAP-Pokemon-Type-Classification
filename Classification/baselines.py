@@ -113,28 +113,45 @@ def img_to_b64(path):
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def save_mistake_examples(model_name, y_true, y_pred, test_paths, n=24):
-    mistakes = [(i, y_true[i], y_pred[i]) for i in range(len(y_true)) if y_true[i] != y_pred[i]]
+def save_mistake_examples(model_name, y_true_int, y_pred, test_paths, y_true_multihot, n=24):
+    """y_true_int: primary type index; y_true_multihot: full multi-hot for partial credit."""
+    n_test = len(y_true_int)
+    mistakes = []
+    for i in range(n_test):
+        if y_true_int[i] != y_pred[i]:
+            all_true = [TYPES[j] for j in range(len(TYPES)) if y_true_multihot[i][j]]
+            partial = y_true_multihot[i][y_pred[i]] == 1.0  # predicted type IS one of the true types
+            mistakes.append((i, all_true, TYPES[y_pred[i]], partial))
+
+    n_partial = sum(1 for *_, p in mistakes if p)
+    n_wrong   = len(mistakes) - n_partial
+
     rng = np.random.default_rng(42)
     sample = mistakes if len(mistakes) <= n else [mistakes[i] for i in rng.choice(len(mistakes), n, replace=False)]
 
     cards = []
-    for i, true_label, pred_label in sample:
+    for i, true_types, pred_type, partial in sample:
         b64 = img_to_b64(test_paths[i])
-        true_type = TYPES[true_label]
-        pred_type = TYPES[pred_label]
+        true_str  = " / ".join(true_types)
+        border    = "#fa0" if partial else "#e55"
+        tag       = "Partial" if partial else "Wrong"
+        tag_color = "#fa0" if partial else "#f66"
         cards.append(f"""
         <div style="display:inline-block;margin:8px;text-align:center;
-                    border:2px solid #e55;border-radius:8px;padding:6px;background:#1a1a1a">
+                    border:2px solid {border};border-radius:8px;padding:6px;background:#1a1a1a">
           <img src="data:image/png;base64,{b64}" width="96" height="96"
                style="image-rendering:pixelated"/><br>
-          <span style="color:#4af;font-size:12px">True: {true_type}</span><br>
-          <span style="color:#f66;font-size:12px">Pred: {pred_type}</span>
+          <span style="color:#4af;font-size:12px">True: {true_str}</span><br>
+          <span style="color:#f66;font-size:12px">Pred: {pred_type}</span><br>
+          <span style="color:{tag_color};font-size:11px">{tag}</span>
         </div>""")
 
     safe_name = model_name.replace(" ", "_").replace("(", "").replace(")", "")
     html = f"""<!DOCTYPE html><html><body style="background:#111;color:#eee;font-family:sans-serif">
-    <h2 style="padding:12px">{model_name} — {len(mistakes)} mistakes (showing {len(sample)})</h2>
+    <h2 style="padding:12px">{model_name} &mdash; {len(mistakes)} mistakes out of {n_test} test
+      &nbsp;|&nbsp; <span style="color:#e55">{n_wrong} wrong</span>
+      &nbsp;|&nbsp; <span style="color:#fa0">{n_partial} partial (predicted secondary type)</span>
+      &nbsp;(showing {len(sample)})</h2>
     <div style="padding:12px">{"".join(cards)}</div>
     </body></html>"""
 
@@ -151,11 +168,13 @@ def main():
 
     print(f"Loading {len(index)} sprites (threaded)...")
     X = load_all_images(index)
-    y = np.array([label for _, label in index])
+    y = np.array([label.argmax() for _, label in index])
+    y_multihot = np.array([label for _, label in index])
 
     train_idx, val_idx, test_idx = gen_stratified_split(index)
     X_train, y_train = X[train_idx], y[train_idx]
-    X_test, y_test = X[test_idx], y[test_idx]
+    X_test,  y_test  = X[test_idx],  y[test_idx]
+    y_test_multihot  = y_multihot[test_idx]
     print(f"Split — train: {len(train_idx)}, val: {len(val_idx)}, test: {len(test_idx)}")
 
     print(f"\nFitting PCA (n={N_PCA})...")
@@ -181,7 +200,7 @@ def main():
         report(name, metrics)
         all_metrics[name] = metrics
         all_cms[name] = confusion_matrix(y_test, preds, labels=list(range(len(TYPES))))
-        save_mistake_examples(name, y_test, preds, test_paths)
+        save_mistake_examples(name, y_test, preds, test_paths, y_test_multihot)
 
     print("\nSaving visualizations...")
     save_comparison_chart(all_metrics)

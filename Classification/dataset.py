@@ -24,6 +24,10 @@ INDEX_CACHE = Path(__file__).parent / ".index_cache.pkl"
 
 CACHE_VERSION = 2  # bumped for multi-label (multi-hot) labels
 
+# Secondary types often score 0.3–0.5; lower threshold catches them without
+# flooding single-type Pokemon with false positives
+PRED_THRESHOLD = 0.35
+
 # National Dex generation cut-offs
 GEN_RANGES = [
     (1, 151), (152, 251), (252, 386), (387, 493),
@@ -52,15 +56,17 @@ def get_generation(pokemon_id: int) -> int:
 
 
 def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
-    """Split per generation so every gen is proportionally represented in each split."""
-    by_gen = {}
-    for i, (path, _) in enumerate(index):
+    """Split stratified by (generation, dual/single type) so every stratum is
+    proportionally represented in train/val/test."""
+    by_stratum = {}
+    for i, (path, label) in enumerate(index):
         gen = get_generation(int(path.parent.name))
-        by_gen.setdefault(gen, []).append(i)
+        is_dual = int(label.sum()) >= 2
+        by_stratum.setdefault((gen, is_dual), []).append(i)
 
     train_idx, val_idx, test_idx = [], [], []
     rng = np.random.default_rng(seed)
-    for indices in by_gen.values():
+    for indices in by_stratum.values():
         indices = np.array(indices)
         rng.shuffle(indices)
         n = len(indices)
