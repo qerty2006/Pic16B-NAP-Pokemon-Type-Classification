@@ -11,8 +11,8 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).parent))
-from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, PRED_THRESHOLD
-from cnn_model import build_efficientnet_b0
+from dataset import PokemonSpriteDataset, TYPES, gen_gen_split, PRED_THRESHOLD, TRAIN_TRANSFORM, DEFAULT_TRANSFORM
+from cnn_model import build_model
 
 CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
 
@@ -81,27 +81,35 @@ def main():
                         help="Only train the classifier head")
     args = parser.parse_args()
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     print(f"Device: {device}")
 
     print("Building dataset...")
-    dataset = PokemonSpriteDataset()
-    train_idx, val_idx, _ = gen_stratified_split(dataset.index)
+    base_dataset = PokemonSpriteDataset()
+    train_idx, val_idx, _ = gen_gen_split(base_dataset.index, train_gens=(1, 2, 3), test_gens=(4, 5, 6))
     print(f"Split — train: {len(train_idx)}, val: {len(val_idx)}")
 
-    sampler = make_weighted_sampler(dataset, train_idx)
+    train_dataset = PokemonSpriteDataset(transform=TRAIN_TRANSFORM)
+    val_dataset = PokemonSpriteDataset(transform=DEFAULT_TRANSFORM)
+
+    sampler = make_weighted_sampler(train_dataset, train_idx)
     # num_workers=0 loads data in the main process — safe on Windows, lower RAM usage.
     # Increase to 2-4 on Linux/Mac or if you have spare RAM for faster data loading.
     train_loader = DataLoader(
-        Subset(dataset, train_idx), batch_size=args.batch_size, sampler=sampler, num_workers=0
+        Subset(train_dataset, train_idx), batch_size=args.batch_size, sampler=sampler, num_workers=4
     )
     val_loader = DataLoader(
-        Subset(dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=0
+        Subset(val_dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=4
     )
 
-    model = build_efficientnet_b0(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
-    optimizer = torch.optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr
+    model = build_model(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
+    optimizer = torch.optim.AdamW(
+        filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-2
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
     criterion = nn.BCEWithLogitsLoss()

@@ -9,6 +9,7 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
+from torchvision.transforms import InterpolationMode
 
 TYPES = [
     "bug", "dark", "dragon", "electric", "fairy", "fighting",
@@ -19,7 +20,7 @@ TYPE_TO_IDX = {t: i for i, t in enumerate(TYPES)}
 
 PROJECT_ROOT = Path(__file__).parent.parent
 SPRITES_DIR = PROJECT_ROOT / "Data-Acquisition" / "split_sprites"
-POKEAPI_DIR = PROJECT_ROOT / "pokeapi_data"
+POKEAPI_DIR = PROJECT_ROOT / "Data-Acquisition" / "pokeapi_data"
 INDEX_CACHE = Path(__file__).parent / ".index_cache.pkl"
 
 CACHE_VERSION = 2  # bumped for multi-label (multi-hot) labels
@@ -36,7 +37,15 @@ GEN_RANGES = [
 
 # ImageNet normalization — required for pretrained ResNet
 DEFAULT_TRANSFORM = transforms.Compose([
-    transforms.Resize((224, 224)),
+    transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
+
+TRAIN_TRANSFORM = transforms.Compose([
+    transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
@@ -48,7 +57,22 @@ def rgba_to_rgb(img: Image.Image) -> Image.Image:
     return bg
 
 
-def get_generation(pokemon_id: int) -> int:
+def get_generation(pokemon_id: int, folder_name: str = "") -> int:
+    """Determine generation from ID range, but override with regional/form tags if present."""
+    tags = {
+        "alola": 7,
+        "galar": 8,
+        "hisui": 8,
+        "husui": 8,  # supporting user typo
+        "paldea": 9,
+        "mega": 6,
+        "gigantamax": 8,
+    }
+    name_lower = folder_name.lower()
+    for tag, gen in tags.items():
+        if tag in name_lower:
+            return gen
+
     for gen, (lo, hi) in enumerate(GEN_RANGES, 1):
         if lo <= pokemon_id <= hi:
             return gen
@@ -60,7 +84,9 @@ def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
     proportionally represented in train/val/test."""
     by_stratum = {}
     for i, (path, label) in enumerate(index):
-        gen = get_generation(int(path.parent.name))
+        folder_name = path.parent.name
+        pokemon_id = int(folder_name.split("-")[0])
+        gen = get_generation(pokemon_id, folder_name)
         is_dual = int(label.sum()) >= 2
         by_stratum.setdefault((gen, is_dual), []).append(i)
 
@@ -76,6 +102,35 @@ def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
         val_idx.extend(indices[n_test:n_test + n_val])
         train_idx.extend(indices[n_test + n_val:])
 
+    return train_idx, val_idx, test_idx
+
+
+def gen_gen_split(index, train_gens=(1, 2, 3), val_frac=0.15, test_gens=(4, 5, 6), seed=42):
+    """Split based on specific generations for training and testing."""
+    train_pool = []
+    test_pool = []
+    
+    for i, (path, label) in enumerate(index):
+        folder_name = path.parent.name
+        pokemon_id = int(folder_name.split("-")[0])
+        gen = get_generation(pokemon_id, folder_name)
+        
+        if gen in train_gens:
+            train_pool.append(i)
+        elif gen in test_gens:
+            test_pool.append(i)
+            
+    rng = np.random.default_rng(seed)
+    rng.shuffle(train_pool)
+    
+    n_val = int(len(train_pool) * val_frac)
+    val_idx = train_pool[:n_val]
+    train_idx = train_pool[n_val:]
+    
+    # shuffle test as well for consistency
+    rng.shuffle(test_pool)
+    test_idx = test_pool
+    
     return train_idx, val_idx, test_idx
 
 
