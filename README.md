@@ -70,7 +70,7 @@ python Data-Acquisition/sprite_splitter.py
 
 > **Note:** Make sure that the cd is set to the Data Acquisition folder (in git bash) before you run the bash prompt so that it downloads the prompts to that folder. 
 
-If the splitter can't find `pokerogue_sprites/`, manually move it into `Data-Acquisition/`. The script checks both the project root and `Data-Acquisition/` automatically.
+> **Note:** If the splitter can't find `pokerogue_sprites/`, manually move it into `Data-Acquisition/`. The script checks both the project root and `Data-Acquisition/` automatically.
 
 ### 4. Fetch Pokémon Data
 
