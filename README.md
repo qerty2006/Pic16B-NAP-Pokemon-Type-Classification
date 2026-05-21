@@ -33,7 +33,27 @@ python Classification/generate_report.py  # results/index.html
 
 ## Setup
 
-### 1. Install Git Hooks (run once after cloning)
+### 1. Create & Activate the Conda Environment
+
+The project uses a local conda environment stored in `.conda/`.
+
+**Create it (first time only):**
+```bash
+conda create --yes --prefix ./.conda python
+```
+
+**Activate it (every session):**
+```bash
+conda activate ./.conda
+```
+
+> **Windows note:** If `conda` is not recognised in PowerShell, open an Anaconda PowerShell prompt or run `conda init powershell` once, then restart the terminal.
+
+Once activated your prompt will show `(.conda)`. All subsequent steps assume the environment is active.
+
+---
+
+### 2. Install Git Hooks (run once after cloning)
 
 Installs a pre-push safety check that runs automatically before every `git push`. It aborts the push if any large data files (sprites, pokeapi data, checkpoints, results) are accidentally tracked and tells you exactly which files to fix.
 
