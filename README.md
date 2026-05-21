@@ -69,7 +69,7 @@ git rm -r --cached <file>
 git commit -m "Remove accidentally tracked file"
 ```
 
-### 2. Install Dependencies
+### 3. Install Dependencies
 
 Ensure Python 3.10+ is installed, then:
 
@@ -79,7 +79,7 @@ pip install -r requirements.txt
 
 This installs CPU-only PyTorch by default. For GPU support, install PyTorch separately first — visit [pytorch.org/get-started/locally](https://pytorch.org/get-started/locally/) to get the right command for your CUDA version, then run `pip install -r requirements.txt` for the rest.
 
-### 3. Download Sprites
+### 4. Download Sprites
 
 Requires Git Bash on Windows:
 
@@ -90,7 +90,7 @@ python Data-Acquisition/sprite_splitter.py
 
 > **Note:** If the splitter can't find `pokerogue_sprites/`, manually move it into `Data-Acquisition/`. The script checks both the project root and `Data-Acquisition/` automatically.
 
-### 4. Fetch Pokémon Data
+### 5. Fetch Pokémon Data
 
 ```bash
 python Data-Acquisition/pokeapi_data.py
