@@ -20,18 +20,28 @@ sys.path.insert(0, str(Path(__file__).parent))
 from dataset import _build_index, TYPES, rgba_to_rgb, gen_stratified_split
 import generate_report
 
+# 64x64 is a tunable knob — CNN uses 224x224; increase here for more detail at cost of speed
 IMG_SIZE = 64
 N_PCA = 50
 RESULTS_DIR = Path(__file__).parent / "results"
 
 
 def load_image_flat(path):
+    """Load one sprite as a flat normalized float array of shape (IMG_SIZE*IMG_SIZE*3,).
+
+    Converts RGBA to RGB, resizes to IMG_SIZE×IMG_SIZE, flattens to 1D, and scales to [0, 1].
+    This is the feature vector fed into PCA and the sklearn classifiers.
+    """
     img = rgba_to_rgb(Image.open(path).convert("RGBA"))
     img = img.resize((IMG_SIZE, IMG_SIZE))
     return np.array(img).flatten() / 255.0
 
 
 def load_all_images(index):
+    """Load all sprites in parallel and return an (N, IMG_SIZE*IMG_SIZE*3) float array.
+
+    Uses ThreadPoolExecutor to parallelize disk reads. Order matches the index list.
+    """
     paths = [p for p, _ in index]
     with ThreadPoolExecutor() as executor:
         results = list(tqdm(executor.map(load_image_flat, paths), total=len(paths), desc="Loading sprites"))
@@ -39,6 +49,7 @@ def load_all_images(index):
 
 
 def get_metrics(y_true, y_pred):
+    """Return a dict of accuracy, macro F1, precision, and recall for single-label predictions."""
     return {
         "Accuracy":  accuracy_score(y_true, y_pred),
         "F1 macro":  f1_score(y_true, y_pred, average="macro", zero_division=0),
@@ -48,12 +59,18 @@ def get_metrics(y_true, y_pred):
 
 
 def report(name, metrics):
+    """Print a model's metrics dict to stdout."""
     print(f"\n{name}")
     for k, v in metrics.items():
         print(f"  {k:<12} {v:.4f}")
 
 
 def save_comparison_chart(all_metrics):
+    """Save a grouped bar chart comparing all baseline models across metrics as HTML.
+
+    Args:
+        all_metrics: dict of {model_name: {metric_name: score}} for all baseline models.
+    """
     metric_names = list(next(iter(all_metrics.values())).keys())
 
     fig = go.Figure()
@@ -80,6 +97,11 @@ def save_comparison_chart(all_metrics):
 
 
 def save_confusion_matrices(all_cms):
+    """Save side-by-side confusion matrix heatmaps for all baseline models as a single HTML file.
+
+    Rows = true type, columns = predicted type. Each cell shows the raw count.
+    All matrices share the same type ordering (TYPES list).
+    """
     model_names = list(all_cms.keys())
     fig = make_subplots(
         rows=1, cols=len(model_names),
@@ -108,6 +130,7 @@ def save_confusion_matrices(all_cms):
 
 
 def img_to_b64(path):
+    """Load a sprite, convert to RGB, resize to 96×96, and return a base64-encoded PNG string for HTML embedding."""
     img = rgba_to_rgb(Image.open(path).convert("RGBA")).resize((96, 96))
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -115,7 +138,20 @@ def img_to_b64(path):
 
 
 def save_mistake_examples(model_name, y_true_int, y_pred, test_paths, y_true_multihot, n=24):
-    """y_true_int: primary type index; y_true_multihot: full multi-hot for partial credit."""
+    """Generate an HTML gallery of misclassified sprites for one baseline model and save to results/.
+
+    Baselines predict a single type (argmax), so a mistake is when the predicted type
+    doesn't match the primary type. A mistake is marked "Partial" if the predicted type
+    happens to be the Pokemon's secondary type (i.e. it got the wrong one of its two types).
+    Samples up to n examples randomly.
+
+    Args:
+        model_name: Display name used in the HTML title and output filename.
+        y_true_int: (N,) array of true primary type indices.
+        y_pred: (N,) array of predicted type indices.
+        test_paths: List of sprite file paths, aligned with y_true_int.
+        y_true_multihot: (N, 18) multi-hot array used to detect partial matches.
+    """
     n_test = len(y_true_int)
     mistakes = []
     for i in range(n_test):
@@ -169,6 +205,7 @@ def main():
 
     print(f"Loading {len(index)} sprites (threaded)...")
     X = load_all_images(index)
+    # argmax gives primary type only — baselines are single-label, unlike the CNN which predicts multi-hot
     y = np.array([label.argmax() for _, label in index])
     y_multihot = np.array([label for _, label in index])
 
@@ -178,6 +215,7 @@ def main():
     y_test_multihot  = y_multihot[test_idx]
     print(f"Split — train: {len(train_idx)}, val: {len(val_idx)}, test: {len(test_idx)}")
 
+    # n_components=50 is tunable — higher captures more detail but slows SVM training
     print(f"\nFitting PCA (n={N_PCA})...")
     pca = PCA(n_components=N_PCA, random_state=42)
     X_train_pca = pca.fit_transform(X_train)

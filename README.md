@@ -161,6 +161,34 @@ Combines CNN and baseline results into a single `Classification/results/index.ht
 
 ---
 
+## Data Flow Example
+
+What happens to a single Bulbasaur sprite from raw file to prediction:
+
+```
+1. Raw sprite (RGBA PNG, ~80x80 pixels)
+   → rgba_to_rgb(): paste on white background → RGB
+   → Resize to 224x224, ImageNet normalize
+   → Tensor shape: [3, 224, 224]
+
+2. Label (from pokeapi_data/1_bulbasaur/bulbasaur.json)
+   → types: ["grass", "poison"]
+   → multi-hot encode: [0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0]  (grass=1, poison=1)
+   → Tensor shape: [18]
+
+3. Training (train.py)
+   → Forward: EfficientNet-B0 → raw logits [18]
+   → Loss: BCEWithLogitsLoss(logits, multi-hot label) — 18 independent binary losses
+   → Backprop updates weights
+
+4. Evaluation (evaluate.py)
+   → sigmoid(logits) → probabilities [18]
+   → top-k: k=2 (Bulbasaur has 2 types), pick 2 highest probs
+   → Compare predicted [grass, poison] vs true [grass, poison] → correct
+```
+
+---
+
 ## Understanding the Metrics
 
 | Metric | What it means |

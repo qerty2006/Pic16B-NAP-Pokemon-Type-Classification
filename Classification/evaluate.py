@@ -33,6 +33,8 @@ def collect_predictions(model, loader, device, n_types):
             probs = torch.sigmoid(model(imgs)).cpu().numpy()
             batch_size = len(labels)
 
+            # top-k picks exactly k types where k = true type count — avoids tuning a threshold
+            # NOTE: train.py val metric still uses PRED_THRESHOLD=0.35, so train F1 != test F1 TODO
             preds = np.zeros_like(probs, dtype=int)
             for i in range(batch_size):
                 k = n_types[sample_idx + i]
@@ -52,6 +54,12 @@ def collect_predictions(model, loader, device, n_types):
 
 
 def print_summary(y_true, y_pred, y_probs):
+    """Print overall and per-type evaluation metrics to stdout.
+
+    Overall metrics: exact match accuracy, macro F1, precision, recall, ROC-AUC.
+    Per-type metrics: F1, precision, recall for each of the 18 types individually.
+    ROC-AUC is computed on raw probabilities; all other metrics use top-k predictions.
+    """
     acc  = accuracy_score(y_true, y_pred)   # exact match across both types
     f1   = f1_score(y_true, y_pred, average="macro", zero_division=0)
     prec = precision_score(y_true, y_pred, average="macro", zero_division=0)
@@ -79,7 +87,14 @@ def print_summary(y_true, y_pred, y_probs):
         print(f"  {t:<12} {f1_per[i]:>6.4f} {prec_per[i]:>6.4f} {rec_per[i]:>6.4f}")
 
 
+# Checks whether accuracy degrades on newer generations — a proxy for distribution shift
 def print_per_gen_metrics(y_true, y_pred, test_paths):
+    """Print accuracy and macro F1 broken down by generation.
+
+    Groups test samples by their generation (derived from the sprite folder name / national dex ID)
+    and computes metrics per group. A drop in later generations suggests the model learned
+    generation-specific visual patterns rather than type-indicative features.
+    """
     from collections import defaultdict
     gen_data = defaultdict(lambda: ([], []))
     for i, path in enumerate(test_paths):
@@ -99,6 +114,11 @@ def print_per_gen_metrics(y_true, y_pred, test_paths):
 
 
 def img_to_b64(path):
+    """Load a sprite, convert to RGB, resize to 96×96, and return a base64-encoded PNG string.
+
+    Used to embed sprite thumbnails directly into the HTML mistake gallery
+    without needing separate image files.
+    """
     from dataset import rgba_to_rgb
     img = rgba_to_rgb(Image.open(path).convert("RGBA")).resize((96, 96))
     buf = io.BytesIO()
@@ -107,6 +127,12 @@ def img_to_b64(path):
 
 
 def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30, n_test=None):
+    """Generate an HTML gallery of misclassified CNN test sprites and save to results/.
+
+    Sorts mistakes so fully-wrong predictions appear first, then partial (1 of 2 types correct),
+    both groups ordered by descending confidence. Shows the top n examples.
+    Red border = fully wrong, orange = partial match.
+    """
     mistakes = []
     for i in range(len(y_true)):
         if not np.array_equal(y_true[i], y_pred[i]):

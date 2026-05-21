@@ -22,19 +22,20 @@ SPRITES_DIR = PROJECT_ROOT / "Data-Acquisition" / "split_sprites"
 POKEAPI_DIR = PROJECT_ROOT / "pokeapi_data"
 INDEX_CACHE = Path(__file__).parent / ".index_cache.pkl"
 
+# Bump when label format or stored fields change — stale cache will load wrong label shapes
 CACHE_VERSION = 2  # bumped for multi-label (multi-hot) labels
 
 # Secondary types often score 0.3–0.5; lower threshold catches them without
 # flooding single-type Pokemon with false positives
 PRED_THRESHOLD = 0.35
 
-# National Dex generation cut-offs
+# To add a new generation: append (first_id, last_id) to this list
 GEN_RANGES = [
     (1, 151), (152, 251), (252, 386), (387, 493),
     (494, 649), (650, 721), (722, 809), (810, 905), (906, 1025),
 ]
 
-# ImageNet normalization — required for pretrained ResNet
+# 224x224 and ImageNet norm required — pretrained EfficientNet-B0 expects this exact input
 DEFAULT_TRANSFORM = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -43,12 +44,22 @@ DEFAULT_TRANSFORM = transforms.Compose([
 
 
 def rgba_to_rgb(img: Image.Image) -> Image.Image:
+    """Composite an RGBA sprite onto a white background and return an RGB image.
+
+    Pokemon sprites use transparency for their background. Pasting onto white
+    matches how a browser renders them and gives EfficientNet a consistent input.
+    """
     bg = Image.new("RGB", img.size, (255, 255, 255))
     bg.paste(img, mask=img.split()[3])
     return bg
 
 
 def get_generation(pokemon_id: int) -> int:
+    """Return the generation number (1–9) for a given national dex ID.
+
+    Uses GEN_RANGES to look up the generation. Returns 0 for IDs outside
+    the defined ranges (e.g. above 1025 or invalid).
+    """
     for gen, (lo, hi) in enumerate(GEN_RANGES, 1):
         if lo <= pokemon_id <= hi:
             return gen
@@ -120,7 +131,7 @@ def _fetch_entry(sprite_folder, pokeapi_by_id):
 
 def _build_index(use_cache=True):
     """Returns list of (image_path, multi_hot_label) for all base-form Pokemon (IDs 1-1025).
-    Caches result to disk — delete .index_cache.pkl if pokeapi_data changes.
+    Caches result to disk — delete .index_cache.pkl if pokeapi_data or sprites change.
     """
     if use_cache and INDEX_CACHE.exists():
         with open(INDEX_CACHE, "rb") as f:
@@ -162,6 +173,13 @@ def _build_index(use_cache=True):
 
 
 class PokemonSpriteDataset(Dataset):
+    """PyTorch Dataset over all base-form Pokemon sprites (IDs 1–1025).
+
+    Each __getitem__ returns a (image_tensor [3, 224, 224], label_tensor [18]) pair.
+    The label is multi-hot: positions corresponding to the Pokemon's type(s) are 1.0,
+    all others 0.0. Dual-type Pokemon have exactly two 1s; single-type have one.
+    """
+
     def __init__(self, transform=None, use_cache=True):
         self.index = _build_index(use_cache=use_cache)
         self.transform = transform or DEFAULT_TRANSFORM
@@ -173,6 +191,7 @@ class PokemonSpriteDataset(Dataset):
         img_path, label = self.index[idx]
         img = rgba_to_rgb(Image.open(img_path).convert("RGBA"))
         img = self.transform(img)
+        # label is multi-hot: 1.0 at each type index the Pokemon has (1 or 2 entries set)
         return img, torch.tensor(label, dtype=torch.float32)
 
     @staticmethod

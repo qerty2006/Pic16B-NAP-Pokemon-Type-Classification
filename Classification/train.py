@@ -18,6 +18,14 @@ CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
 
 
 def make_weighted_sampler(dataset, train_idx):
+    """Build a WeightedRandomSampler that upsamples training examples containing rare types.
+
+    Each sample's weight is the inverse frequency of its rarest type, so the sampler
+    draws rare-type Pokemon more often. Without this, the model collapses to predicting
+    Water/Normal for everything because they dominate the dataset.
+
+    Returns a WeightedRandomSampler with replacement, same length as train_idx.
+    """
     labels = np.array([dataset.index[i][1] for i in train_idx])  # (N, 18) multi-hot
     class_counts = labels.sum(axis=0)
     class_counts = np.where(class_counts == 0, 1, class_counts)
@@ -30,6 +38,16 @@ def make_weighted_sampler(dataset, train_idx):
 
 
 def run_epoch(model, loader, criterion, optimizer, device, train=True):
+    """Run one full pass over loader in either train or eval mode.
+
+    In train mode: runs backprop and updates weights each batch.
+    In eval mode: no gradients, no weight updates.
+
+    Returns a dict with keys: loss, accuracy (exact match), f1 (macro),
+    precision (macro), recall (macro). Metrics are computed using PRED_THRESHOLD
+    on sigmoid outputs — this is for display during training only; see evaluate.py
+    for the top-k evaluation used at test time.
+    """
     model.train() if train else model.eval()
     total_loss, all_preds, all_labels = 0.0, [], []
 
@@ -47,6 +65,7 @@ def run_epoch(model, loader, criterion, optimizer, device, train=True):
                 optimizer.step()
 
             total_loss += loss.item() * len(labels)
+            # Threshold-based preds for live training display only; evaluate.py uses top-k instead
             preds = (torch.sigmoid(logits) > PRED_THRESHOLD).cpu().int().numpy()
             all_preds.append(preds)
             all_labels.append(labels.cpu().int().numpy())
@@ -65,6 +84,7 @@ def run_epoch(model, loader, criterion, optimizer, device, train=True):
 
 
 def log(epoch, total_epochs, phase, m):
+    """Print one epoch's metrics to stdout in a fixed-width format."""
     print(
         f"[{epoch:>3}/{total_epochs}] {phase:<5} | "
         f"loss {m['loss']:.4f} | acc {m['accuracy']:.4f} | "
@@ -103,12 +123,14 @@ def main():
     optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr
     )
+    # patience=5: halves LR if val loss doesn't improve for 5 consecutive epochs
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
     criterion = nn.BCEWithLogitsLoss()
 
     CHECKPOINT_DIR.mkdir(exist_ok=True)
     best_f1, best_epoch = 0.0, 0
 
+    # log.csv is NOT gitignored — back it up before pulling; teammates' runs will overwrite it
     csv_path = Path(__file__).parent / "log.csv"
     csv_fields = ["epoch", "phase", "loss", "accuracy", "f1", "precision", "recall"]
     with open(csv_path, "w", newline="") as f:
@@ -130,6 +152,7 @@ def main():
 
         if val_m["f1"] > best_f1:
             best_f1, best_epoch = val_m["f1"], epoch
+            # best.pt IS gitignored — copy it elsewhere before switching branches or pulling
             torch.save({
                 "epoch": epoch,
                 "model_state": model.state_dict(),
