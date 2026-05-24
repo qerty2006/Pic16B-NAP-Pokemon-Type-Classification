@@ -108,8 +108,8 @@ Run from the project root in order. `dataset.py` is a shared module — do not r
 ### 0. Sanity Checks
 ```bash
 python Classification/dataset.py    # prints index size, type distribution, split counts, batch shape
-SUPER IMPORTANT: Right now if you make any changes to dataset.py make sure to delete .index_cache.pkl or change Cache_version before running
-Otherwise, a new dataset comprised of your changes will not be created.
+#SUPER IMPORTANT: Right now if you make any changes to dataset.py make sure to delete .index_cache.pkl or change Cache_version before running
+#Otherwise, a new dataset comprised of your changes will not be created.
 python Classification/cnn_model.py  # prints input/output shapes and param count
 ```
 
