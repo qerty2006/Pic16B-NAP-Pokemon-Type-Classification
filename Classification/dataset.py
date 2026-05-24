@@ -9,6 +9,7 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
+from torchvision.transforms import InterpolationMode
 
 TYPES = [
     "bug", "dark", "dragon", "electric", "fairy", "fighting",
@@ -19,15 +20,11 @@ TYPE_TO_IDX = {t: i for i, t in enumerate(TYPES)}
 
 PROJECT_ROOT = Path(__file__).parent.parent
 SPRITES_DIR = PROJECT_ROOT / "Data-Acquisition" / "split_sprites"
-POKEAPI_DIR = PROJECT_ROOT / "pokeapi_data"
+POKEAPI_DIR = PROJECT_ROOT / "Data-Acquisition" / "pokeapi_data"
 INDEX_CACHE = Path(__file__).parent / ".index_cache.pkl"
 
 # Bump when label format or stored fields change — stale cache will load wrong label shapes
 CACHE_VERSION = 2  # bumped for multi-label (multi-hot) labels
-
-# Secondary types often score 0.3–0.5; lower threshold catches them without
-# flooding single-type Pokemon with false positives
-PRED_THRESHOLD = 0.35
 
 # To add a new generation: append (first_id, last_id) to this list
 GEN_RANGES = [
@@ -37,8 +34,16 @@ GEN_RANGES = [
 
 # 224x224 and ImageNet norm required — pretrained EfficientNet-B0 expects this exact input
 DEFAULT_TRANSFORM = transforms.Compose([
-    transforms.Resize((224, 224)),
+    transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
     transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
+
+Train_TRANSFORM = transforms.Compose([
+    transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
+    transforms.ToTensor(),
+    transforms.RandomHorizontalFlip(p=0.5), # Swaps facing direction
+    transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.7),  # Shifts color values slightly
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
@@ -66,45 +71,89 @@ def get_generation(pokemon_id: int) -> int:
     return 0
 
 
+def parse_folder_id(folder_name: str) -> int:
+    """Helper to safely extract the base integer ID from folder names like '3-mega' or '12'."""
+    base_part = folder_name.split("-")[0]
+    return int(base_part) if base_part.isdigit() else None
+
+
 def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
-    """Split stratified by (generation, dual/single type) so every stratum is
-    proportionally represented in train/val/test."""
-    by_stratum = {}
+    """Split stratified by (generation, dual/single type) ensuring that ALL
+    sprites for a specific Pokemon ID stay together in the same split group."""
+
+    id_to_indices = {}
+    id_to_stratum = {}
+
+    # 1. Group all image frame indices by their base Pokemon ID
     for i, (path, label) in enumerate(index):
-        gen = get_generation(int(path.parent.name))
-        is_dual = int(label.sum()) >= 2
-        by_stratum.setdefault((gen, is_dual), []).append(i)
+        pokemon_id = parse_folder_id(path.parent.name)
+        if pokemon_id is None:
+            continue
+
+        id_to_indices.setdefault(pokemon_id, []).append(i)
+
+        # Determine the demographic stratum based on the first time we see this ID
+        if pokemon_id not in id_to_stratum:
+            gen = get_generation(pokemon_id)
+            is_dual = int(label.sum()) >= 2
+            id_to_stratum[pokemon_id] = (gen, is_dual)
+
+    # 2. Group the unique Pokemon IDs by their stratum buckets
+    by_stratum = {}
+    for pokemon_id, stratum in id_to_stratum.items():
+        by_stratum.setdefault(stratum, []).append(pokemon_id)
 
     train_idx, val_idx, test_idx = [], [], []
     rng = np.random.default_rng(seed)
-    for indices in by_stratum.values():
-        indices = np.array(indices)
-        rng.shuffle(indices)
-        n = len(indices)
+
+    # 3. Shuffle IDs inside each stratum, then pull ALL their frames into the same split
+    for ids in by_stratum.values():
+        ids = np.array(ids)
+        rng.shuffle(ids)
+
+        n = len(ids)
         n_test = max(1, int(n * test_frac))
         n_val = max(1, int(n * val_frac))
-        test_idx.extend(indices[:n_test])
-        val_idx.extend(indices[n_test:n_test + n_val])
-        train_idx.extend(indices[n_test + n_val:])
+
+        test_ids = ids[:n_test]
+        val_ids = ids[n_test:n_test + n_val]
+        train_ids = ids[n_test + n_val:]
+
+        # Unpack every single image index belonging to these IDs
+        for pid in test_ids:
+            test_idx.extend(id_to_indices[pid])
+        for pid in val_ids:
+            val_idx.extend(id_to_indices[pid])
+        for pid in train_ids:
+            train_idx.extend(id_to_indices[pid])
 
     return train_idx, val_idx, test_idx
 
 
 def _fetch_entry(sprite_folder, pokeapi_by_id):
     """Load one Pokemon's index entry. Returns (path, multi_hot_label) or None."""
-    pokemon_id = int(sprite_folder.name)
-    if pokemon_id > 1025:
-        return None
+    pokemon_id = parse_folder_id(sprite_folder.name)
 
     pokeapi_folder = pokeapi_by_id.get(pokemon_id)
     if pokeapi_folder is None:
         return None
-
+    folder_name_string = sprite_folder.name
     species_name = pokeapi_folder.name.split("_", 1)[1]
     variety_json = pokeapi_folder / f"{species_name}.json"
     if not variety_json.exists():
         return None
+    # Form-aware file matching logic
+    if "-" in folder_name_string:
+        form_suffix = folder_name_string.split("-", 1)[1]
+        variety_json = pokeapi_folder / f"{species_name}-{form_suffix}.json"
+    else:
+        variety_json = pokeapi_folder / f"{species_name}.json"
 
+    # Fallback to base species JSON if form-specific one doesn't exist
+    if not variety_json.exists():
+        variety_json = pokeapi_folder / f"{species_name}.json"
+        if not variety_json.exists():
+            return None
     with open(variety_json) as f:
         data = json.load(f)
 
@@ -126,7 +175,8 @@ def _fetch_entry(sprite_folder, pokeapi_by_id):
     if not frames:
         return None
 
-    return (frames[0], label)
+
+    return [(frame, label) for frame in frames[:1]]
 
 
 def _build_index(use_cache=True):
@@ -151,19 +201,37 @@ def _build_index(use_cache=True):
 
     sprite_folders = [
         p for p in SPRITES_DIR.iterdir()
-        if p.is_dir() and p.name.isdigit()
+        if p.is_dir() and parse_folder_id(p.name) is not None
     ]
+
+    from collections import defaultdict
+    variant_counts = defaultdict(int)
+    filtered_folders = []
+
+    # Sort folders so base forms (e.g., '6') come before variants (e.g., '6-mega-x')
+    sprite_folders.sort(key=lambda p: (parse_folder_id(p.name), len(p.name)))
+
+    for folder in sprite_folders:
+        pokemon_id = parse_folder_id(folder.name)
+
+        # Check if it's a variant folder (contains a hyphen)
+        if "-" in folder.name:
+            if variant_counts[pokemon_id] >= 3:
+                continue  # Skip this variant, we already have 3!
+            variant_counts[pokemon_id] += 1
+
+        filtered_folders.append(folder)
 
     index = []
     with ThreadPoolExecutor() as executor:
-        futures = {executor.submit(_fetch_entry, sf, pokeapi_by_id): sf for sf in sprite_folders}
+        futures = {executor.submit(_fetch_entry, sf, pokeapi_by_id): sf for sf in filtered_folders}
         for future in tqdm(as_completed(futures), total=len(futures), desc="Building index"):
             result = future.result()
             if result is not None:
-                index.append(result)
+                index.extend(result)
 
     # sort by pokemon ID for reproducibility
-    index.sort(key=lambda x: int(x[0].parent.name))
+    index.sort(key=lambda x: (parse_folder_id(x[0].parent.name), x[0].parent.name, x[0].name))
 
     if use_cache:
         with open(INDEX_CACHE, "wb") as f:
@@ -205,6 +273,33 @@ if __name__ == "__main__":
     print("Loading dataset...")
     ds = PokemonSpriteDataset()
     print(f"Total samples: {len(ds)}")
+
+    # ====================================================================
+    print("\n--- Spot-Checking Variant Forms & Types ---")
+
+    # We will look for folders containing these specific words in our index
+    test_forms = ["mega", "gigantamax", "alola", "galar", "hisui", "paldea"]
+    found_variants = 0
+
+    for path, label in ds.index:
+        folder_name = path.parent.name
+
+        # If the folder name contains a hyphen (meaning it's a variant)
+        if "-" in folder_name:
+            found_variants += 1
+
+            # Convert the multi-hot float array back into text names for printing
+            active_types = [TYPES[idx] for idx, val in enumerate(label) if val == 1.0]
+
+            # Print out the first 15 variants found so you can review them
+            if found_variants <= 15:
+                print(f"Folder: {folder_name:<18} -> Decoded Types: {active_types}")
+
+    print(f"\nTotal variant/form folders successfully loaded: {found_variants}")
+    # ====================================================================
+
+    # Keep your original code below this line...
+    print("\nCounting type distribution...")
 
     print("\nCounting type distribution...")
     type_counts = np.zeros(len(TYPES), dtype=int)
