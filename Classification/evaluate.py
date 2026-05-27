@@ -34,8 +34,6 @@ def collect_predictions(model, loader, device, n_types):
             probs = torch.sigmoid(model(imgs)).cpu().numpy()
             batch_size = len(labels)
 
-            # top-k picks exactly k types where k = true type count — avoids tuning a threshold
-            # NOTE: train.py val metric still uses PRED_THRESHOLD=0.35, so train F1 != test F1 TODO
             preds = np.zeros_like(probs, dtype=int)
             for i in range(batch_size):
                 k = n_types[sample_idx + i]
