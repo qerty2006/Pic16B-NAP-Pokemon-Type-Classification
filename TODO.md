@@ -7,3 +7,7 @@ ALL: Clean up Repo for final stuff
 PRESENTATION:
 
 
+
+
+
+delete cache -> dataset -> train -> evaluate -> visualizer

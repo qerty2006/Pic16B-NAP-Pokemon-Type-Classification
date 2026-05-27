@@ -150,7 +150,6 @@ def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
 
     return train_idx, val_idx, test_idx
 
-
 def gen_gen_split(index, train_gens=(1, 2, 3), val_frac=0.15, test_gens=(4, 5, 6), seed=42):
     """Split based on specific generations for training and testing."""
     train_pool = []

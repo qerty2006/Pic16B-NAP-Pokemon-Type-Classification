@@ -178,6 +178,10 @@ def main():
 
     print("Building dataset...")
 
+
+
+    # ==== CAN REDUCE ====
+
     """ BELOW IS SECTION FOR GEN GEN    
     #base_dataset = PokemonSpriteDataset()
     #train_idx, val_idx, _ = gen_gen_split(base_dataset.index, train_gens=(1, 2, 3), test_gens=(4, 5, 6))
@@ -207,6 +211,10 @@ def main():
     val_loader = DataLoader(
         Subset(dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=4
     )
+
+
+     # ==== CAN REDUCE ====
+
 
     #model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
     model = build_model(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
