@@ -15,6 +15,7 @@ from Classification.dataset import Train_TRANSFORM, DEFAULT_TRANSFORM
 sys.path.insert(0, str(Path(__file__).parent))
 from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split
 from cnn_model import build_efficientnet_b0
+from ViT import build_vit_b16
 
 CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
 
@@ -160,7 +161,7 @@ def log(epoch, total_epochs, phase, m):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs", type=int, default=40)
+    parser.add_argument("--epochs", type=int, default=300)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--freeze-backbone", action="store_true",
@@ -186,7 +187,8 @@ def main():
         Subset(dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=0
     )
 
-    model = build_efficientnet_b0(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
+    #model = build_efficientnet_b0(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
+    model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
     optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr
     )
@@ -203,6 +205,7 @@ def main():
     with open(csv_path, "w", newline="") as f:
         csv.DictWriter(f, fieldnames=csv_fields).writeheader()
 
+    print(f"SUCCESS: Using model architecture -> {type(model).__name__}")
     for epoch in tqdm(range(1, args.epochs + 1), desc="Epochs"):
         dataset.transform = Train_TRANSFORM
         train_m = run_epoch2(model, train_loader, criterion, optimizer, device, train=True)
