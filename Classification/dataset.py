@@ -116,11 +116,13 @@ def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
     by_stratum = {}
     for pokemon_id, stratum in id_to_stratum.items():
         by_stratum.setdefault(stratum, []).append(pokemon_id)
+
+        ''' This portion is not needed most likely and causing problems
         folder_name = path.parent.name
         pokemon_id = int(folder_name.split("-")[0])
         gen = get_generation(pokemon_id, folder_name)
         is_dual = int(label.sum()) >= 2
-        by_stratum.setdefault((gen, is_dual), []).append(i)
+        by_stratum.setdefault((gen, is_dual), []).append(i) '''
 
     train_idx, val_idx, test_idx = [], [], []
     rng = np.random.default_rng(seed)
