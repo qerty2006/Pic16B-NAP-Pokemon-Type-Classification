@@ -232,7 +232,8 @@ def main():
     ckpt = torch.load(CHECKPOINT_PATH, map_location=device)
     print(f"Loaded checkpoint from epoch {ckpt['epoch']} (val F1: {ckpt['val_f1']:.4f})")
 
-    model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
+    #model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
+    model = build_efficientnet_b0(num_classes=len(TYPES)).to(device)
     model.load_state_dict(ckpt["model_state"])
 
     dataset = PokemonSpriteDataset()

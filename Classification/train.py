@@ -187,8 +187,8 @@ def main():
         Subset(dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=0
     )
 
-    #model = build_efficientnet_b0(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
-    model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
+    model = build_efficientnet_b0(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
+    #model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
     optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr
     )
