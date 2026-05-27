@@ -1,8 +1,8 @@
 import torch.nn as nn
-from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
+from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
 
 def build_model(num_classes: int, freeze_backbone: bool = False) -> nn.Module:
-    model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
+    model = efficientnet_b0(weights=EfficientNet_B0_Weights.DEFAULT)
 
     if freeze_backbone:
         for param in model.parameters():
