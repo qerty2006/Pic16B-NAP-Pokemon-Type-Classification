@@ -13,6 +13,10 @@ from sklearn.metrics import (
 )
 
 sys.path.insert(0, str(Path(__file__).parent))
+from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, get_generation, parse_folder_id
+import generate_report
+from cnn_model import build_efficientnet_b0
+from ViT import build_vit_b16
 from dataset import PokemonSpriteDataset, TYPES, gen_gen_split, get_generation, PRED_THRESHOLD
 import generate_report
 from cnn_model import build_model
@@ -51,7 +55,51 @@ def collect_predictions(model, loader, device, n_types):
     )
 
 
+
+def collect_predictions2(model, loader, device, threshold=0.5):
+    """Predict types purely based on a confidence threshold (no top-k cheating)."""
+    model.eval()
+    all_labels, all_preds, all_probs = [], [], []
+
+    with torch.no_grad():
+        for imgs, labels in tqdm(loader, desc="Evaluating"):
+            imgs = imgs.to(device)
+            probs = torch.sigmoid(model(imgs)).cpu().numpy()
+
+            # --- CHANGED HERE ---
+            # Instead of a loop sorting top-k, anyone who clears the threshold gets a 1.
+            preds = np.zeros_like(probs, dtype=int)
+
+            GAP_THRESHOLD = 0.25  # Set this to match your training settings
+
+            for i in range(len(probs)):
+                # Find the indices that would sort the array from highest to lowest probability
+                sorted_idx = np.argsort(probs[i])[::-1]
+
+                # 1. Always lock in the absolute #1 highest guess (guarantees no "none" predictions)
+                preds[i, sorted_idx[0]] = 1
+
+                # 2. Check if the 2nd highest guess is within the gap threshold
+                if (probs[i, sorted_idx[0]] - probs[i, sorted_idx[1]]) < GAP_THRESHOLD:
+                    preds[i, sorted_idx[1]] = 1
+            # --------------------
+
+            all_labels.append(labels.int().numpy())
+            all_preds.append(preds)
+            all_probs.append(probs)
+
+    return (
+        np.vstack(all_labels),
+        np.vstack(all_preds),
+        np.vstack(all_probs),
+    )
 def print_summary(y_true, y_pred, y_probs):
+    """Print overall and per-type evaluation metrics to stdout.
+
+    Overall metrics: exact match accuracy, macro F1, precision, recall, ROC-AUC.
+    Per-type metrics: F1, precision, recall for each of the 18 types individually.
+    ROC-AUC is computed on raw probabilities; all other metrics use top-k predictions.
+    """
     acc  = accuracy_score(y_true, y_pred)   # exact match across both types
     f1   = f1_score(y_true, y_pred, average="macro", zero_division=0)
     prec = precision_score(y_true, y_pred, average="macro", zero_division=0)
@@ -79,11 +127,19 @@ def print_summary(y_true, y_pred, y_probs):
         print(f"  {t:<12} {f1_per[i]:>6.4f} {prec_per[i]:>6.4f} {rec_per[i]:>6.4f}")
 
 
+# Checks whether accuracy degrades on newer generations — a proxy for distribution shift
 def print_per_gen_metrics(y_true, y_pred, test_paths):
+    """Print accuracy and macro F1 broken down by generation.
+
+    Groups test samples by their generation (derived from the sprite folder name / national dex ID)
+    and computes metrics per group. A drop in later generations suggests the model learned
+    generation-specific visual patterns rather than type-indicative features.
+    """
     from collections import defaultdict
     gen_data = defaultdict(lambda: ([], []))
     for i, path in enumerate(test_paths):
-        gen = get_generation(int(Path(path).parent.name))
+        pokemon_id = parse_folder_id(Path(path).parent.name)
+        gen = get_generation(pokemon_id) if pokemon_id else 0
         gen_data[gen][0].append(y_true[i])
         gen_data[gen][1].append(y_pred[i])
 
@@ -99,6 +155,11 @@ def print_per_gen_metrics(y_true, y_pred, test_paths):
 
 
 def img_to_b64(path):
+    """Load a sprite, convert to RGB, resize to 96×96, and return a base64-encoded PNG string.
+
+    Used to embed sprite thumbnails directly into the HTML mistake gallery
+    without needing separate image files.
+    """
     from dataset import rgba_to_rgb
     img = rgba_to_rgb(Image.open(path).convert("RGBA")).resize((96, 96))
     buf = io.BytesIO()
@@ -107,6 +168,12 @@ def img_to_b64(path):
 
 
 def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30, n_test=None):
+    """Generate an HTML gallery of misclassified CNN test sprites and save to results/.
+
+    Sorts mistakes so fully-wrong predictions appear first, then partial (1 of 2 types correct),
+    both groups ordered by descending confidence. Shows the top n examples.
+    Red border = fully wrong, orange = partial match.
+    """
     mistakes = []
     for i in range(len(y_true)):
         if not np.array_equal(y_true[i], y_pred[i]):
@@ -171,6 +238,8 @@ def main():
     ckpt = torch.load(CHECKPOINT_PATH, map_location=device)
     print(f"Loaded checkpoint from epoch {ckpt['epoch']} (val F1: {ckpt['val_f1']:.4f})")
 
+    #model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
+    model = build_efficientnet_b0(num_classes=len(TYPES)).to(device)
     model = build_model(num_classes=len(TYPES)).to(device)
     model.load_state_dict(ckpt["model_state"])
 
@@ -184,7 +253,7 @@ def main():
 
     test_paths = [dataset.index[i][0] for i in test_idx]
     n_types = [int(dataset.index[i][1].sum()) for i in test_idx]
-    y_true, y_pred, y_probs = collect_predictions(model, test_loader, device, n_types)
+    y_true, y_pred, y_probs = collect_predictions2(model, test_loader, device)
 
     print_summary(y_true, y_pred, y_probs)
     print_per_gen_metrics(y_true, y_pred, test_paths)

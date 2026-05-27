@@ -33,7 +33,27 @@ python Classification/generate_report.py  # results/index.html
 
 ## Setup
 
-### 1. Install Git Hooks (run once after cloning)
+### 1. Create & Activate the Conda Environment
+
+The project uses a local conda environment stored in `.conda/`.
+
+**Create it (first time only):**
+```bash
+conda create --yes --prefix ./.conda python
+```
+
+**Activate it (every session):**
+```bash
+conda activate ./.conda
+```
+
+> **Windows note:** If `conda` is not recognised in PowerShell, open an Anaconda PowerShell prompt or run `conda init powershell` once, then restart the terminal.
+
+Once activated your prompt will show `(.conda)`. All subsequent steps assume the environment is active.
+
+---
+
+### 2. Install Git Hooks (run once after cloning)
 
 Installs a pre-push safety check that runs automatically before every `git push`. It aborts the push if any large data files (sprites, pokeapi data, checkpoints, results) are accidentally tracked and tells you exactly which files to fix.
 
@@ -49,7 +69,7 @@ git rm -r --cached <file>
 git commit -m "Remove accidentally tracked file"
 ```
 
-### 2. Install Dependencies
+### 3. Install Dependencies
 
 Ensure Python 3.10+ is installed, then:
 
@@ -59,7 +79,7 @@ pip install -r requirements.txt
 
 This installs CPU-only PyTorch by default. For GPU support, install PyTorch separately first — visit [pytorch.org/get-started/locally](https://pytorch.org/get-started/locally/) to get the right command for your CUDA version, then run `pip install -r requirements.txt` for the rest.
 
-### 3. Download Sprites
+### 4. Download Sprites
 
 Requires Git Bash on Windows:
 
@@ -72,7 +92,7 @@ python Data-Acquisition/sprite_splitter.py
 
 > **Note:** If the splitter can't find `pokerogue_sprites/`, manually move it into `Data-Acquisition/`. The script checks both the project root and `Data-Acquisition/` automatically.
 
-### 4. Fetch Pokémon Data
+### 5. Fetch Pokémon Data
 
 ```bash
 python Data-Acquisition/pokeapi_data.py
@@ -142,6 +162,34 @@ Loads the best checkpoint and prints full metrics. Uses top-k prediction — the
 python Classification/generate_report.py
 ```
 Combines CNN and baseline results into a single `Classification/results/index.html` — comparison table across all models, explanation of how each model works, and links to all output galleries. Requires both `evaluate.py` and `baselines.py` to have been run first.
+
+---
+
+## Data Flow Example
+
+What happens to a single Bulbasaur sprite from raw file to prediction:
+
+```
+1. Raw sprite (RGBA PNG, ~80x80 pixels)
+   → rgba_to_rgb(): paste on white background → RGB
+   → Resize to 224x224, ImageNet normalize
+   → Tensor shape: [3, 224, 224]
+
+2. Label (from pokeapi_data/1_bulbasaur/bulbasaur.json)
+   → types: ["grass", "poison"]
+   → multi-hot encode: [0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0]  (grass=1, poison=1)
+   → Tensor shape: [18]
+
+3. Training (train.py)
+   → Forward: EfficientNet-B0 → raw logits [18]
+   → Loss: BCEWithLogitsLoss(logits, multi-hot label) — 18 independent binary losses
+   → Backprop updates weights
+
+4. Evaluation (evaluate.py)
+   → sigmoid(logits) → probabilities [18]
+   → top-k: k=2 (Bulbasaur has 2 types), pick 2 highest probs
+   → Compare predicted [grass, poison] vs true [grass, poison] → correct
+```
 
 ---
 
