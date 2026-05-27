@@ -1,19 +1,6 @@
 import torch.nn as nn
 from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
 
-
-def build_efficientnet_b0(num_classes: int, freeze_backbone: bool = False) -> nn.Module:
-    """Load pretrained EfficientNet-B0 and replace the classifier head for multi-label type prediction.
-
-    The final linear layer is swapped to output num_classes logits (one per type).
-    The model outputs raw logits — callers must apply sigmoid before thresholding or top-k selection.
-
-    Args:
-        num_classes: Number of output logits. Should be 18 (one per Pokemon type).
-        freeze_backbone: If True, only the new classifier head is trained. Use for fast
-                         experiments or very small datasets. Default False fine-tunes everything.
-    """
-    model = efficientnet_b0(weights=EfficientNet_B0_Weights.DEFAULT)
 def build_model(num_classes: int, freeze_backbone: bool = False) -> nn.Module:
     model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
 

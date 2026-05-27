@@ -10,13 +10,11 @@ from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from tqdm import tqdm
 
-from Classification.dataset import Train_TRANSFORM, DEFAULT_TRANSFORM
 
 sys.path.insert(0, str(Path(__file__).parent))
-from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split
-from cnn_model import build_efficientnet_b0
+from dataset import gen_stratified_split
 from ViT import build_vit_b16
-from dataset import PokemonSpriteDataset, TYPES, gen_gen_split, PRED_THRESHOLD, TRAIN_TRANSFORM, DEFAULT_TRANSFORM
+from dataset import PokemonSpriteDataset, TYPES, gen_gen_split, TRAIN_TRANSFORM, DEFAULT_TRANSFORM
 from cnn_model import build_model
 
 CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
@@ -179,32 +177,44 @@ def main():
     print(f"Device: {device}")
 
     print("Building dataset...")
-    base_dataset = PokemonSpriteDataset()
-    train_idx, val_idx, _ = gen_gen_split(base_dataset.index, train_gens=(1, 2, 3), test_gens=(4, 5, 6))
-    print(f"Split — train: {len(train_idx)}, val: {len(val_idx)}")
 
-    train_dataset = PokemonSpriteDataset(transform=TRAIN_TRANSFORM)
-    val_dataset = PokemonSpriteDataset(transform=DEFAULT_TRANSFORM)
+    """ BELOW IS SECTION FOR GEN GEN    
+    #base_dataset = PokemonSpriteDataset()
+    #train_idx, val_idx, _ = gen_gen_split(base_dataset.index, train_gens=(1, 2, 3), test_gens=(4, 5, 6))
+    #print(f"Split — train: {len(train_idx)}, val: {len(val_idx)}")
 
-    sampler = make_weighted_sampler(train_dataset, train_idx)
+    #train_dataset = PokemonSpriteDataset(transform=TRAIN_TRANSFORM)
+    #val_dataset = PokemonSpriteDataset(transform=DEFAULT_TRANSFORM)
+
+    #sampler = make_weighted_sampler(train_dataset, train_idx)
     # num_workers=0 loads data in the main process — safe on Windows, lower RAM usage.
-    # Increase to 2-4 on Linux/Mac or if you have spare RAM for faster data loading.
+    # Increase to 2-4 on Linux/Mac or if you have spare RAM for faster data loading. """
+
+    """train_loader = DataLoader(
+           Subset(train_dataset, train_idx), batch_size=args.batch_size, sampler=sampler, num_workers=4
+       )
+       val_loader = DataLoader(
+           Subset(val_dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=4
+       )"""
+
+    dataset = PokemonSpriteDataset()
+    train_idx, val_idx, _ = gen_stratified_split(dataset.index)
+    sampler = make_weighted_sampler(dataset, train_idx)
 
     train_loader = DataLoader(
-        Subset(train_dataset, train_idx), batch_size=args.batch_size, sampler=sampler, num_workers=4
-    )
+    Subset(dataset, train_idx), batch_size = args.batch_size, sampler = sampler, num_workers = 4)
+
     val_loader = DataLoader(
-        Subset(val_dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=4
+        Subset(dataset, val_idx), batch_size=args.batch_size, shuffle=False, num_workers=4
     )
 
-    model = build_efficientnet_b0(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
     #model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
-    optimizer = torch.optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr
     model = build_model(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-2
     )
+
+
     # patience=5: halves LR if val loss doesn't improve for 5 consecutive epochs
     #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=5, factor=0.5)
     criterion = nn.BCEWithLogitsLoss()
@@ -220,7 +230,7 @@ def main():
 
     print(f"SUCCESS: Using model architecture -> {type(model).__name__}")
     for epoch in tqdm(range(1, args.epochs + 1), desc="Epochs"):
-        dataset.transform = Train_TRANSFORM
+        dataset.transform = TRAIN_TRANSFORM
         train_m = run_epoch2(model, train_loader, criterion, optimizer, device, train=True)
         dataset.transform = DEFAULT_TRANSFORM
         val_m   = run_epoch2(model, val_loader,   criterion, optimizer, device, train=False)

@@ -39,8 +39,7 @@ DEFAULT_TRANSFORM = transforms.Compose([
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
-Train_TRANSFORM = transforms.Compose([
-    transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
+
 TRAIN_TRANSFORM = transforms.Compose([
     transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
     transforms.RandomHorizontalFlip(),
@@ -63,12 +62,7 @@ def rgba_to_rgb(img: Image.Image) -> Image.Image:
     return bg
 
 
-def get_generation(pokemon_id: int) -> int:
-    """Return the generation number (1–9) for a given national dex ID.
 
-    Uses GEN_RANGES to look up the generation. Returns 0 for IDs outside
-    the defined ranges (e.g. above 1025 or invalid).
-    """
 def get_generation(pokemon_id: int, folder_name: str = "") -> int:
     """Determine generation from ID range, but override with regional/form tags if present."""
     tags = {

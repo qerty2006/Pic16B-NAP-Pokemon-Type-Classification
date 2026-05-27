@@ -14,10 +14,8 @@ from sklearn.metrics import (
 
 sys.path.insert(0, str(Path(__file__).parent))
 from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, get_generation, parse_folder_id
-import generate_report
-from cnn_model import build_efficientnet_b0
 from ViT import build_vit_b16
-from dataset import PokemonSpriteDataset, TYPES, gen_gen_split, get_generation, PRED_THRESHOLD
+from dataset import  gen_gen_split
 import generate_report
 from cnn_model import build_model
 
@@ -239,12 +237,13 @@ def main():
     print(f"Loaded checkpoint from epoch {ckpt['epoch']} (val F1: {ckpt['val_f1']:.4f})")
 
     #model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
-    model = build_efficientnet_b0(num_classes=len(TYPES)).to(device)
     model = build_model(num_classes=len(TYPES)).to(device)
     model.load_state_dict(ckpt["model_state"])
 
     dataset = PokemonSpriteDataset()
-    _, _, test_idx = gen_gen_split(dataset.index, train_gens=(1, 2, 3), test_gens=(4, 5, 6))
+    _, _, test_idx = gen_stratified_split(dataset.index)
+    #We use gen_stratified as base and gen_gen for extra analysis
+    #_, _, test_idx = gen_gen_split(dataset.index, train_gens=(1, 2, 3), test_gens=(4, 5, 6))
 
     # num_workers=0 loads data in the main process — safe on Windows, lower RAM usage.
     # Increase to 2-4 on Linux/Mac or if you have spare RAM for faster data loading.

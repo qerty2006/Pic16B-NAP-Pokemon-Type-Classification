@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).parent))
-from dataset import PokemonSpriteDataset, TYPES, gen_gen_split, PRED_THRESHOLD, TRAIN_TRANSFORM, DEFAULT_TRANSFORM
+from dataset import PokemonSpriteDataset, TYPES, gen_gen_split, TRAIN_TRANSFORM, DEFAULT_TRANSFORM
 from cnn_model import build_model
 
 CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
