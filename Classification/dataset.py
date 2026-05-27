@@ -41,6 +41,10 @@ DEFAULT_TRANSFORM = transforms.Compose([
 
 Train_TRANSFORM = transforms.Compose([
     transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
+TRAIN_TRANSFORM = transforms.Compose([
+    transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
     transforms.ToTensor(),
     transforms.RandomHorizontalFlip(p=0.5), # Swaps facing direction
     transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.7),  # Shifts color values slightly
@@ -65,6 +69,22 @@ def get_generation(pokemon_id: int) -> int:
     Uses GEN_RANGES to look up the generation. Returns 0 for IDs outside
     the defined ranges (e.g. above 1025 or invalid).
     """
+def get_generation(pokemon_id: int, folder_name: str = "") -> int:
+    """Determine generation from ID range, but override with regional/form tags if present."""
+    tags = {
+        "alola": 7,
+        "galar": 8,
+        "hisui": 8,
+        "husui": 8,  # supporting user typo
+        "paldea": 9,
+        "mega": 6,
+        "gigantamax": 8,
+    }
+    name_lower = folder_name.lower()
+    for tag, gen in tags.items():
+        if tag in name_lower:
+            return gen
+
     for gen, (lo, hi) in enumerate(GEN_RANGES, 1):
         if lo <= pokemon_id <= hi:
             return gen
@@ -102,6 +122,11 @@ def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
     by_stratum = {}
     for pokemon_id, stratum in id_to_stratum.items():
         by_stratum.setdefault(stratum, []).append(pokemon_id)
+        folder_name = path.parent.name
+        pokemon_id = int(folder_name.split("-")[0])
+        gen = get_generation(pokemon_id, folder_name)
+        is_dual = int(label.sum()) >= 2
+        by_stratum.setdefault((gen, is_dual), []).append(i)
 
     train_idx, val_idx, test_idx = [], [], []
     rng = np.random.default_rng(seed)
@@ -127,6 +152,35 @@ def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
         for pid in train_ids:
             train_idx.extend(id_to_indices[pid])
 
+    return train_idx, val_idx, test_idx
+
+
+def gen_gen_split(index, train_gens=(1, 2, 3), val_frac=0.15, test_gens=(4, 5, 6), seed=42):
+    """Split based on specific generations for training and testing."""
+    train_pool = []
+    test_pool = []
+    
+    for i, (path, label) in enumerate(index):
+        folder_name = path.parent.name
+        pokemon_id = int(folder_name.split("-")[0])
+        gen = get_generation(pokemon_id, folder_name)
+        
+        if gen in train_gens:
+            train_pool.append(i)
+        elif gen in test_gens:
+            test_pool.append(i)
+            
+    rng = np.random.default_rng(seed)
+    rng.shuffle(train_pool)
+    
+    n_val = int(len(train_pool) * val_frac)
+    val_idx = train_pool[:n_val]
+    train_idx = train_pool[n_val:]
+    
+    # shuffle test as well for consistency
+    rng.shuffle(test_pool)
+    test_idx = test_pool
+    
     return train_idx, val_idx, test_idx
 
 

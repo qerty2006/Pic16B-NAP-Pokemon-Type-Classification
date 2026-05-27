@@ -1,5 +1,5 @@
 import torch.nn as nn
-from torchvision.models import efficientnet_b0, EfficientNet_B0_Weights
+from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
 
 
 def build_efficientnet_b0(num_classes: int, freeze_backbone: bool = False) -> nn.Module:
@@ -14,6 +14,8 @@ def build_efficientnet_b0(num_classes: int, freeze_backbone: bool = False) -> nn
                          experiments or very small datasets. Default False fine-tunes everything.
     """
     model = efficientnet_b0(weights=EfficientNet_B0_Weights.DEFAULT)
+def build_model(num_classes: int, freeze_backbone: bool = False) -> nn.Module:
+    model = efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.DEFAULT)
 
     if freeze_backbone:
         for param in model.parameters():
@@ -26,7 +28,7 @@ def build_efficientnet_b0(num_classes: int, freeze_backbone: bool = False) -> nn
 
 if __name__ == "__main__":
     import torch
-    model = build_efficientnet_b0(num_classes=18)
+    model = build_model(num_classes=18)
     x = torch.randn(4, 3, 224, 224)
     out = model(x)
     print(f"Input:  {x.shape}")

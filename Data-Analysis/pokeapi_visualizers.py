@@ -333,7 +333,6 @@ def generation_type_distribution(
     print(f"Subplot report saved to {final_filename}")
     fig.show()
 
-
     
 if __name__ == "__main__":
     # Test generation_type_distribution

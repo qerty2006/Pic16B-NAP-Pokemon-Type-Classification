@@ -2,6 +2,9 @@
 .claude/
 PATRICK_TODO*
 
+#Testng directory before pushing to github
+NISH/
+
 # Local data and assets
 pokeapi_data/
 pokerogue_sprites/

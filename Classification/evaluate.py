@@ -17,6 +17,9 @@ from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, get_gener
 import generate_report
 from cnn_model import build_efficientnet_b0
 from ViT import build_vit_b16
+from dataset import PokemonSpriteDataset, TYPES, gen_gen_split, get_generation, PRED_THRESHOLD
+import generate_report
+from cnn_model import build_model
 
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints" / "best.pt"
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -224,7 +227,12 @@ def main():
         print(f"No checkpoint found at {CHECKPOINT_PATH}. Run train.py first.")
         sys.exit(1)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     print(f"Device: {device}")
 
     ckpt = torch.load(CHECKPOINT_PATH, map_location=device)
@@ -232,14 +240,15 @@ def main():
 
     #model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
     model = build_efficientnet_b0(num_classes=len(TYPES)).to(device)
+    model = build_model(num_classes=len(TYPES)).to(device)
     model.load_state_dict(ckpt["model_state"])
 
     dataset = PokemonSpriteDataset()
-    _, _, test_idx = gen_stratified_split(dataset.index)
+    _, _, test_idx = gen_gen_split(dataset.index, train_gens=(1, 2, 3), test_gens=(4, 5, 6))
 
     # num_workers=0 loads data in the main process — safe on Windows, lower RAM usage.
     # Increase to 2-4 on Linux/Mac or if you have spare RAM for faster data loading.
-    test_loader = DataLoader(Subset(dataset, test_idx), batch_size=32, shuffle=False, num_workers=0)
+    test_loader = DataLoader(Subset(dataset, test_idx), batch_size=32, shuffle=False, num_workers=4)
     print(f"Test set size: {len(test_idx)}")
 
     test_paths = [dataset.index[i][0] for i in test_idx]

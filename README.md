@@ -88,6 +88,8 @@ bash Data-Acquisition/setup_pokerogue_assets.sh
 python Data-Acquisition/sprite_splitter.py
 ```
 
+> **Note:** Make sure that the cd is set to the Data Acquisition folder (in git bash) before you run the bash prompt so that it downloads the prompts to that folder. 
+
 > **Note:** If the splitter can't find `pokerogue_sprites/`, manually move it into `Data-Acquisition/`. The script checks both the project root and `Data-Acquisition/` automatically.
 
 ### 5. Fetch Pokémon Data
@@ -126,6 +128,8 @@ Run from the project root in order. `dataset.py` is a shared module — do not r
 ### 0. Sanity Checks
 ```bash
 python Classification/dataset.py    # prints index size, type distribution, split counts, batch shape
+#SUPER IMPORTANT: Right now if you make any changes to dataset.py make sure to delete .index_cache.pkl or change Cache_version before running
+#Otherwise, a new dataset comprised of your changes will not be created.
 python Classification/cnn_model.py  # prints input/output shapes and param count
 ```
 
