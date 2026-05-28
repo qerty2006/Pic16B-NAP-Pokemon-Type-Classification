@@ -7,6 +7,7 @@ pandas
 
 # Visualization
 plotly
+matplotlib
 
 # ML / Classification
 scikit-learn
@@ -18,3 +19,6 @@ scikit-learn
 #   pip install torch torchvision
 torch
 torchvision
+
+
+

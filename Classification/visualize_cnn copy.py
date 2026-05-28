@@ -14,7 +14,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from PIL import Image
-import matplotlib.cm as cm
+import matplotlib
 
 # Ensure local classification directory is in python path
 classification_dir = Path(__file__).parent.resolve()
@@ -40,7 +40,7 @@ def array_to_b64(arr, cmap_name=None, vmin=None, vmax=None):
         arr_norm = (arr - arr.min()) / (arr.max() - arr.min() + 1e-8)
         
     if cmap_name:
-        colormap = cm.get_cmap(cmap_name)
+        colormap = matplotlib.colormaps.get_cmap(cmap_name)
         # colormap returns RGBA floats in [0, 1]
         rgba_img = colormap(arr_norm)
         img = Image.fromarray((rgba_img[:, :, :3] * 255).astype(np.uint8))
