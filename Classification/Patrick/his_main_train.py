@@ -7,12 +7,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from tqdm import tqdm
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from dataset import PokemonSpriteDataset, TYPES, gen_gen_split, TRAIN_TRANSFORM, DEFAULT_TRANSFORM
 from cnn_model import build_model
+from prediction_utils import multilabel_metrics, predict_from_probabilities
 
 CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
 
@@ -47,20 +47,14 @@ def run_epoch(model, loader, criterion, optimizer, device, train=True):
                 optimizer.step()
 
             total_loss += loss.item() * len(labels)
-            preds = (torch.sigmoid(logits) > PRED_THRESHOLD).cpu().int().numpy()
+            preds = predict_from_probabilities(torch.sigmoid(logits)).cpu().numpy()
             all_preds.append(preds)
             all_labels.append(labels.cpu().int().numpy())
 
     all_preds = np.vstack(all_preds)
     all_labels = np.vstack(all_labels)
-    n = len(all_labels)
-    metrics = {
-        "loss":      total_loss / n,
-        "accuracy":  accuracy_score(all_labels, all_preds),   # exact match
-        "f1":        f1_score(all_labels, all_preds, average="macro", zero_division=0),
-        "precision": precision_score(all_labels, all_preds, average="macro", zero_division=0),
-        "recall":    recall_score(all_labels, all_preds, average="macro", zero_division=0),
-    }
+    metrics = multilabel_metrics(all_labels, all_preds)
+    metrics["loss"] = total_loss / len(all_labels)
     return metrics
 
 

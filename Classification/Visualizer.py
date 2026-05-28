@@ -1,38 +1,32 @@
-"""
-Generates results/index.html - a single-page report comparing all models.
-Requires:
-  - results/y_true.npy, y_pred.npy, y_probs.npy  (from evaluate.py)
-  - results/baselines_metrics.json                (from baselines.py)
-"""
-import json
 import sys
 from pathlib import Path
 
 import numpy as np
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 
 sys.path.insert(0, str(Path(__file__).parent))
-from dataset import TYPES
-
-import base64
+from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split
 from evaluate import img_to_b64
-from dataset import PokemonSpriteDataset
-from dataset import gen_stratified_split
+
 RESULTS_DIR = Path(__file__).parent / "results"
 
-dataset = PokemonSpriteDataset()
-_, _, test_idx = gen_stratified_split(dataset.index)
-test_paths = [dataset.index[i][0] for i in test_idx]
-y_true  = np.load(RESULTS_DIR / "y_true.npy")
-y_pred  = np.load(RESULTS_DIR / "y_pred.npy")
-y_probs = np.load(RESULTS_DIR / "y_probs.npy")
+
+def load_default_results(results_dir=RESULTS_DIR):
+    """Load saved evaluation arrays and matching test sprite paths."""
+    dataset = PokemonSpriteDataset()
+    _, _, test_idx = gen_stratified_split(dataset.index)
+    test_paths = [dataset.index[i][0] for i in test_idx]
+    return (
+        np.load(results_dir / "y_true.npy"),
+        np.load(results_dir / "y_pred.npy"),
+        np.load(results_dir / "y_probs.npy"),
+        test_paths,
+    )
 
 
-def save_all_mistake_examples_with_probs(y_true, y_pred, y_probs, test_paths, n_test=None):
-    """Generate an HTML gallery of every single CNN mistake, displaying detailed
-
-    probabilities for every type the model was heavily considering.
-    """
+def save_all_mistake_examples_with_probs(
+    y_true, y_pred, y_probs, test_paths, n_test=None, output_dir=RESULTS_DIR
+):
+    """Generate an HTML gallery for every CNN mistake with per-type probabilities."""
     mistakes = []
     for i in range(len(y_true)):
         if not np.array_equal(y_true[i], y_pred[i]):
@@ -42,15 +36,12 @@ def save_all_mistake_examples_with_probs(y_true, y_pred, y_probs, test_paths, n_
             confidence = float(y_probs[i].max())
             mistakes.append((i, true_types, pred_types, confidence, partial))
 
-    n_partial = sum(1 for *_, p in mistakes if p)
+    n_partial = sum(1 for *_, partial in mistakes if partial)
     n_wrong = len(mistakes) - n_partial
-
-    # Sort: completely wrong first, then partial matches
     mistakes.sort(key=lambda x: (x[4], -x[3]))
-    sample = mistakes
 
     cards = []
-    for i, true_types, pred_types, confidence, partial in sample:
+    for i, true_types, pred_types, confidence, partial in mistakes:
         b64 = img_to_b64(test_paths[i])
         true_str = " / ".join(true_types)
         pred_str = " / ".join(pred_types) if pred_types else "(none)"
@@ -58,27 +49,19 @@ def save_all_mistake_examples_with_probs(y_true, y_pred, y_probs, test_paths, n_
         tag = "Partial" if partial else "Wrong"
         tag_color = "#fa0" if partial else "#f66"
 
-        # --- NEW: Build the detailed type breakdown breakdown list ---
         prob_rows_html = ""
-
-        # Sort ALL 18 types by what the model scored highest for this specific sample
         type_prob_pairs = [(TYPES[j], float(y_probs[i][j]), bool(y_pred[i][j])) for j in range(len(TYPES))]
-        type_prob_pairs.sort(key=lambda x: -x[1])  # Sort descending by probability value
+        type_prob_pairs.sort(key=lambda x: -x[1])
 
-        for t_name, score, is_predicted in type_prob_pairs:
-            # Only display types that the model gave > 1.0% confidence to
-            # This keeps the layout incredibly neat and focused on relevant data
+        for type_name, score, is_predicted in type_prob_pairs:
             if score >= 0.01:
-                # Highlight text if the model actually picked this type via threshold rules
                 highlight_style = "color:#ff4a9e; font-weight:bold;" if is_predicted else "color:#aaa;"
-
                 prob_rows_html += f"""
                 <div style="display:flex; justify-content:space-between; font-size:11px; margin:2px 0; {highlight_style}">
-                  <span>{t_name}</span>
+                  <span>{type_name}</span>
                   <span>{score:.1%}</span>
                 </div>
                 """
-        # -------------------------------------------------------------
 
         cards.append(f"""
         <div style="display:inline-block; margin:8px; text-align:left; width:180px;
@@ -94,7 +77,6 @@ def save_all_mistake_examples_with_probs(y_true, y_pred, y_probs, test_paths, n_
             <span style="color:{tag_color}; font-size:11px; font-weight:bold; display:block; margin-top:2px;">{tag}</span>
           </div>
 
-          <!-- Probability readout block -->
           <div style="background:#111; padding:6px; border-radius:4px;">
             <div style="font-size:10px; color:#666; text-transform:uppercase; font-weight:bold; margin-bottom:4px; border-bottom:1px solid #222;">Model Confidences</div>
             {prob_rows_html}
@@ -110,17 +92,23 @@ def save_all_mistake_examples_with_probs(y_true, y_pred, y_probs, test_paths, n_
     </head>
     <body style="background:#0d0d0d; color:#eee; font-family:sans-serif; padding:16px;">
     <h2 style="padding:12px; border-bottom:1px solid #333; margin-bottom:16px;">
-      CNN &mdash; {len(mistakes)} mistakes out of {total} test
+      CNN - {len(mistakes)} mistakes out of {total} test
       &nbsp;|&nbsp; <span style="color:#e55">{n_wrong} completely wrong</span>
       &nbsp;|&nbsp; <span style="color:#fa0">{n_partial} partial (1 of 2 correct)</span>
     </h2>
     <div style="display:flex; flex-wrap:wrap; justify-content:flex-start;">{"".join(cards)}</div>
     </body></html>"""
 
-    out = RESULTS_DIR / "mistakes_CNN_all.html"
+    output_dir.mkdir(exist_ok=True)
+    out = output_dir / "mistakes_CNN_all.html"
     out.write_text(html, encoding="utf-8")
     print(f"Saved complete diagnostic breakdown ({len(mistakes)} items) to: {out}")
 
 
+def main():
+    y_true, y_pred, y_probs, test_paths = load_default_results()
+    save_all_mistake_examples_with_probs(y_true, y_pred, y_probs, test_paths, n_test=len(y_true))
+
+
 if __name__ == "__main__":
-    save_all_mistake_examples_with_probs(y_true, y_pred, y_probs, test_paths, n_test=None)
+    main()

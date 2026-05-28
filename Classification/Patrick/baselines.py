@@ -16,9 +16,9 @@ from sklearn.metrics import (
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from dataset import _build_index, TYPES, rgba_to_rgb, gen_stratified_split
-import generate_report
+from Patrick import generate_report
 
 # 64x64 is a tunable knob — CNN uses 224x224; increase here for more detail at cost of speed
 IMG_SIZE = 64

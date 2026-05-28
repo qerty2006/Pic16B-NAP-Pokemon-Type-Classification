@@ -3,7 +3,7 @@
 General Pipeline for training, evaluating, and viewing results on the Pokemon Type Classification task.
 This script coordinates:
 1. Preparing splits of the dataset (supporting stratified split and generation-based split)
-2. Training the CNN model (EfficientNet-V2-S by default) with support for test runs (2 epochs)
+2. Training the CNN model (EfficientNet-B0 by default) with support for test runs (2 epochs)
 3. Evaluating the trained model on the test split
 4. Visualizing results (producing detailed interactive HTML galleries of the classification results)
 
@@ -13,7 +13,6 @@ Supports fully hotswapping dataset splits, paths, checkpoints, and output result
 import argparse
 import csv
 import json
-import os
 import sys
 from pathlib import Path
 import numpy as np
@@ -24,8 +23,6 @@ from torch.utils.data import DataLoader, Subset
 # Ensure local classification directory is in python path
 classification_dir = Path(__file__).parent.resolve()
 sys.path.insert(0, str(classification_dir))
-sys.path.insert(0, str(classification_dir / "Patrick"))
-
 
 from dataset import (
     PokemonSpriteDataset,
@@ -34,13 +31,12 @@ from dataset import (
     gen_gen_split,
     TRAIN_TRANSFORM,
     DEFAULT_TRANSFORM,
-    parse_folder_id,
-    get_generation
 )
 from cnn_model import build_model
-from train import make_weighted_sampler, run_epoch2, log
+from train import make_weighted_sampler, run_epoch, log
 from evaluate import print_summary, print_per_gen_metrics, img_to_b64
-from Visualizer import save_all_mistake_examples_with_probs
+from prediction_utils import collect_gap_predictions
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -176,36 +172,6 @@ def get_splits(args, dataset):
     print(f"Split sizes -> Train: {len(train_idx)}, Val: {len(val_idx)}, Test: {len(test_idx)}")
     return train_idx, val_idx, test_idx
 
-def collect_predictions_pipeline(model, loader, device):
-    """Collect predictions from evaluation loader using the GAP_THRESHOLD logic in evaluate.py."""
-    model.eval()
-    all_labels, all_preds, all_probs = [], [], []
-    GAP_THRESHOLD = 0.25
-
-    with torch.no_grad():
-        for imgs, labels in loader:
-            imgs = imgs.to(device)
-            probs = torch.sigmoid(model(imgs)).cpu().numpy()
-            preds = np.zeros_like(probs, dtype=int)
-
-            for i in range(len(probs)):
-                sorted_idx = np.argsort(probs[i])[::-1]
-                # Guarantee absolute #1 highest guess
-                preds[i, sorted_idx[0]] = 1
-                # Check if the 2nd highest guess is within the gap threshold
-                if (probs[i, sorted_idx[0]] - probs[i, sorted_idx[1]]) < GAP_THRESHOLD:
-                    preds[i, sorted_idx[1]] = 1
-
-            all_labels.append(labels.int().numpy())
-            all_preds.append(preds)
-            all_probs.append(probs)
-
-    return (
-        np.vstack(all_labels),
-        np.vstack(all_preds),
-        np.vstack(all_probs),
-    )
-
 def main():
     args = parse_args()
     results_dir, checkpoint_dir = setup_directories(args)
@@ -276,10 +242,10 @@ def main():
             
         for epoch in range(1, epochs + 1):
             dataset.transform = TRAIN_TRANSFORM
-            train_m = run_epoch2(model, train_loader, criterion, optimizer, device, train=True)
+            train_m = run_epoch(model, train_loader, criterion, optimizer, device, train=True)
             
             dataset.transform = DEFAULT_TRANSFORM
-            val_m   = run_epoch2(model, val_loader,   criterion, optimizer, device, train=False)
+            val_m = run_epoch(model, val_loader, criterion, optimizer, device, train=False)
             
             log(epoch, epochs, "train", train_m)
             log(epoch, epochs, "val",   val_m)
@@ -297,7 +263,7 @@ def main():
                     "val_f1": best_f1,
                     "args": vars(args),
                 }, checkpoint_path)
-                print(f"  ✓ Saved best checkpoint (val F1 {best_f1:.4f}) to: {checkpoint_path}")
+                print(f"  Saved best checkpoint (val F1 {best_f1:.4f}) to: {checkpoint_path}")
                 
         print(f"Training completed! Best val F1: {best_f1:.4f} at epoch {best_epoch}.")
 
@@ -323,9 +289,11 @@ def main():
             num_workers=0
         )
         
-        y_true, y_pred, y_probs = collect_predictions_pipeline(model, test_loader, device)
+        y_true, y_pred, y_probs = collect_gap_predictions(
+            model, test_loader, device, show_progress=False
+        )
         
-        # Save validation results locally in results dir
+        # Save evaluation results locally in results dir.
         np.save(results_dir / "y_true.npy", y_true)
         np.save(results_dir / "y_pred.npy", y_pred)
         np.save(results_dir / "y_probs.npy", y_probs)
@@ -353,9 +321,6 @@ def main():
         
         test_paths = [dataset.index[i][0] for i in test_idx]
         
-        # Ensure our visualization outputs go to our custom results directory!
-        # Let's save both the simple mistakes gallery and the advanced detailed break downs.
-        # We can dynamically monkeypatch evaluate's/Visualizer's RESULTS_DIR or implement our own clean versions.
         print("Generating diagnostic HTML mistake gallery...")
         
         # Build cards

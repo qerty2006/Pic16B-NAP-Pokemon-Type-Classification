@@ -42,10 +42,9 @@ DEFAULT_TRANSFORM = transforms.Compose([
 
 TRAIN_TRANSFORM = transforms.Compose([
     transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
-    transforms.RandomHorizontalFlip(),
     transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
     transforms.ToTensor(),
-    transforms.RandomHorizontalFlip(p=0.5), # Swaps facing direction
+    transforms.RandomHorizontalFlip(p=0.5),
     transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.7),  # Shifts color values slightly
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
@@ -85,7 +84,7 @@ def get_generation(pokemon_id: int, folder_name: str = "") -> int:
     return 0
 
 
-def parse_folder_id(folder_name: str) -> int:
+def parse_folder_id(folder_name: str) -> int | None:
     """Helper to safely extract the base integer ID from folder names like '3-mega' or '12'."""
     base_part = folder_name.split("-")[0]
     return int(base_part) if base_part.isdigit() else None
@@ -116,13 +115,6 @@ def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
     by_stratum = {}
     for pokemon_id, stratum in id_to_stratum.items():
         by_stratum.setdefault(stratum, []).append(pokemon_id)
-
-        ''' This portion is not needed most likely and causing problems
-        folder_name = path.parent.name
-        pokemon_id = int(folder_name.split("-")[0])
-        gen = get_generation(pokemon_id, folder_name)
-        is_dual = int(label.sum()) >= 2
-        by_stratum.setdefault((gen, is_dual), []).append(i) '''
 
     train_idx, val_idx, test_idx = [], [], []
     rng = np.random.default_rng(seed)
@@ -348,8 +340,6 @@ if __name__ == "__main__":
     # ====================================================================
 
     # Keep your original code below this line...
-    print("\nCounting type distribution...")
-
     print("\nCounting type distribution...")
     type_counts = np.zeros(len(TYPES), dtype=int)
     for _, label in tqdm(ds.index, desc="Counting"):

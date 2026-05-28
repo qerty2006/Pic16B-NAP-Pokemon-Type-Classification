@@ -155,7 +155,7 @@ Fine-tunes EfficientNet-B0 on 224×224 sprites using `BCEWithLogitsLoss` for mul
 ```bash
 python Classification/evaluate.py
 ```
-Loads the best checkpoint and prints full metrics. Uses top-k prediction — the model is told how many types each Pokémon has and predicts exactly that many. Saves results and a mistake gallery to `Classification/results/`.
+Loads the best checkpoint and prints full metrics. Evaluation uses the same gap rule as training metrics: always predict the highest-probability type, then add the second type when the top-two probability gap is under 0.25. Saves results and a mistake gallery to `Classification/results/`.
 
 ### 5. Generate Report
 ```bash
@@ -187,7 +187,7 @@ What happens to a single Bulbasaur sprite from raw file to prediction:
 
 4. Evaluation (evaluate.py)
    → sigmoid(logits) → probabilities [18]
-   → top-k: k=2 (Bulbasaur has 2 types), pick 2 highest probs
+   → gap rule: pick the highest-probability type, then add the second if it is within 0.25
    → Compare predicted [grass, poison] vs true [grass, poison] → correct
 ```
 
