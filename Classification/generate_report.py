@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 """
 Generates results/index.html - a single-page report comparing all models.
 Requires:
@@ -11,7 +12,7 @@ from pathlib import Path
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from dataset import TYPES
 
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -56,7 +57,7 @@ MODEL_DESCRIPTIONS = {
             "The final layer outputs 18 logits (one per type) and sigmoid activation allows "
             "predicting both types simultaneously for dual-type Pokemon."
         ),
-        "pipeline": "224x224 RGB -&gt; EfficientNet-B0 backbone -&gt; Linear(1280, 18) -&gt; Sigmoid -&gt; top-k prediction",
+        "pipeline": "224x224 RGB -&gt; EfficientNet-B0 backbone -&gt; Linear(1280, 18) -&gt; Sigmoid -&gt; gap-rule prediction",
         "color": "#ff4a9e",
     },
 }
@@ -220,6 +221,18 @@ def main():
     out = RESULTS_DIR / "index.html"
     out.write_text(html, encoding="utf-8")
     print(f"Saved: {out}")
+=======
+from pathlib import Path
+
+from Patrick import generate_report as report
+
+RESULTS_DIR = Path(__file__).parent / "results"
+
+
+def main(results_dir=RESULTS_DIR):
+    report.RESULTS_DIR = Path(results_dir)
+    report.main()
+>>>>>>> Stashed changes
 
 
 if __name__ == "__main__":

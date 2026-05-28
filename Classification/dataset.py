@@ -43,6 +43,19 @@ DEFAULT_TRANSFORM = transforms.Compose([
 ])
 
 
+<<<<<<< Updated upstream
+=======
+TRAIN_TRANSFORM = transforms.Compose([
+    transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
+    transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
+    transforms.ToTensor(),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.7),  # Shifts color values slightly
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
+
+
+>>>>>>> Stashed changes
 def rgba_to_rgb(img: Image.Image) -> Image.Image:
     """Composite an RGBA sprite onto a white background and return an RGB image.
 
@@ -66,14 +79,28 @@ def get_generation(pokemon_id: int) -> int:
     return 0
 
 
+<<<<<<< Updated upstream
+=======
+def parse_folder_id(folder_name: str) -> int | None:
+    """Helper to safely extract the base integer ID from folder names like '3-mega' or '12'."""
+    base_part = folder_name.split("-")[0]
+    return int(base_part) if base_part.isdigit() else None
+
+
+>>>>>>> Stashed changes
 def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
     """Split stratified by (generation, dual/single type) so every stratum is
     proportionally represented in train/val/test."""
     by_stratum = {}
+<<<<<<< Updated upstream
     for i, (path, label) in enumerate(index):
         gen = get_generation(int(path.parent.name))
         is_dual = int(label.sum()) >= 2
         by_stratum.setdefault((gen, is_dual), []).append(i)
+=======
+    for pokemon_id, stratum in id_to_stratum.items():
+        by_stratum.setdefault(stratum, []).append(pokemon_id)
+>>>>>>> Stashed changes
 
     train_idx, val_idx, test_idx = [], [], []
     rng = np.random.default_rng(seed)
@@ -206,6 +233,34 @@ if __name__ == "__main__":
     ds = PokemonSpriteDataset()
     print(f"Total samples: {len(ds)}")
 
+<<<<<<< Updated upstream
+=======
+    # ====================================================================
+    print("\n--- Spot-Checking Variant Forms & Types ---")
+
+    # We will look for folders containing these specific words in our index
+    test_forms = ["mega", "gigantamax", "alola", "galar", "hisui", "paldea"]
+    found_variants = 0
+
+    for path, label in ds.index:
+        folder_name = path.parent.name
+
+        # If the folder name contains a hyphen (meaning it's a variant)
+        if "-" in folder_name:
+            found_variants += 1
+
+            # Convert the multi-hot float array back into text names for printing
+            active_types = [TYPES[idx] for idx, val in enumerate(label) if val == 1.0]
+
+            # Print out the first 15 variants found so you can review them
+            if found_variants <= 15:
+                print(f"Folder: {folder_name:<18} -> Decoded Types: {active_types}")
+
+    print(f"\nTotal variant/form folders successfully loaded: {found_variants}")
+    # ====================================================================
+
+    # Keep your original code below this line...
+>>>>>>> Stashed changes
     print("\nCounting type distribution...")
     type_counts = np.zeros(len(TYPES), dtype=int)
     for _, label in tqdm(ds.index, desc="Counting"):
