@@ -6,6 +6,15 @@ ALL: Clean up Repo for final stuff
 
 PRESENTATION:
 
+Nish: Data collection, Grayscale study, Neuron visualization for select sprites (with colored outlines for each color channel)? 
+
+Patrick: How we trained model, why we used certain models
+
+Ajmain: Data analysis, main model scoring for paper
+
+
+
+
 
 
 
