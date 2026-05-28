@@ -10,7 +10,7 @@ Nish: Data collection, Grayscale study, Neuron visualization for select sprites 
 
 Patrick: How we trained model, why we used certain models
 
-Ajmain: Data analysis, main model scoring for paper
+Ajmain: Data analysis, main model scoring for paper, set sccuracy metirc ( signle types and double types )
 
 
 

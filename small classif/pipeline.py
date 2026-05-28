@@ -26,6 +26,7 @@ classification_dir = Path(__file__).parent.resolve()
 sys.path.insert(0, str(classification_dir))
 sys.path.insert(0, str(classification_dir / "Patrick"))
 
+
 from dataset import (
     PokemonSpriteDataset,
     TYPES,
@@ -33,8 +34,6 @@ from dataset import (
     gen_gen_split,
     TRAIN_TRANSFORM,
     DEFAULT_TRANSFORM,
-    GRAYSCALE_TRAIN_TRANSFORM,
-    GRAYSCALE_DEFAULT_TRANSFORM,
     parse_folder_id,
     get_generation
 )
@@ -126,11 +125,6 @@ def parse_args():
         "--test-run", 
         action="store_true", 
         help="Run a quick test training of only 2 epochs"
-    )
-    parser.add_argument(
-        "--grayscale",
-        action="store_true",
-        help="Convert the dataset to grayscale before passing it to the model"
     )
     
     # File paths and Hotswappability options
@@ -250,7 +244,7 @@ def main():
     if args.mode in ["all", "train"]:
         print("\n--- [Step 2/4] Model Training ---")
         epochs = 2 if args.test_run else args.epochs
-        print(f"Training for {epochs} epochs (freeze_backbone={args.freeze_backbone}, grayscale={args.grayscale})...")
+        print(f"Training for {epochs} epochs (freeze_backbone={args.freeze_backbone})...")
         
         sampler = make_weighted_sampler(dataset, train_idx)
         train_loader = DataLoader(
@@ -280,14 +274,11 @@ def main():
         with open(csv_path, "w", newline="") as f:
             csv.DictWriter(f, fieldnames=csv_fields).writeheader()
             
-        active_train_tf = GRAYSCALE_TRAIN_TRANSFORM if args.grayscale else TRAIN_TRANSFORM
-        active_eval_tf = GRAYSCALE_DEFAULT_TRANSFORM if args.grayscale else DEFAULT_TRANSFORM
-            
         for epoch in range(1, epochs + 1):
-            dataset.transform = active_train_tf
+            dataset.transform = TRAIN_TRANSFORM
             train_m = run_epoch2(model, train_loader, criterion, optimizer, device, train=True)
             
-            dataset.transform = active_eval_tf
+            dataset.transform = DEFAULT_TRANSFORM
             val_m   = run_epoch2(model, val_loader,   criterion, optimizer, device, train=False)
             
             log(epoch, epochs, "train", train_m)
@@ -324,9 +315,6 @@ def main():
         ckpt = torch.load(checkpoint_path, map_location=device)
         model = build_model(num_classes=len(TYPES)).to(device)
         model.load_state_dict(ckpt["model_state"])
-        
-        # Ensure we use the correct transform for evaluation
-        dataset.transform = GRAYSCALE_DEFAULT_TRANSFORM if args.grayscale else DEFAULT_TRANSFORM
         
         test_loader = DataLoader(
             Subset(dataset, test_idx), 
@@ -386,9 +374,6 @@ def main():
         # Sort: completely wrong first, then partial matches
         mistakes.sort(key=lambda x: (x[4], -x[3]))
         
-        # CSS filter for grayscale if the flag was used
-        img_style = "image-rendering:pixelated; filter: grayscale(100%);" if args.grayscale else "image-rendering:pixelated;"
-        
         cards = []
         for i, true_types, pred_types, confidence, partial in mistakes:
             b64 = img_to_b64(test_paths[i])
@@ -418,7 +403,7 @@ def main():
                         background:#13151a; box-shadow: 0 4px 20px rgba(0,0,0,0.4); vertical-align:top;
                         transition: transform 0.2s ease; cursor: pointer;">
               <div style="text-align:center; background:#1c1e24; border-radius:8px; padding:8px; display: flex; justify-content: center; align-items: center;">
-                <img src="data:image/png;base64,{b64}" width="96" height="96" style="{img_style}"/><br>
+                <img src="data:image/png;base64,{b64}" width="96" height="96" style="image-rendering:pixelated"/><br>
               </div>
               <div style="margin-top:10px; border-bottom:1px solid #222530; padding-bottom:8px; margin-bottom:8px;">
                 <span style="color:#00a3ff; font-size:13px; font-weight:bold; display:block; margin-bottom: 2px;">True: {true_str}</span>
@@ -492,9 +477,9 @@ def main():
         </body>
         </html>"""
 
-        gallery_out = results_dir / f"mistakes_{'grayscale' if args.grayscale else 'color'}_gallery.html"
+        gallery_out = results_dir / "mistakes_gallery.html"
         gallery_out.write_text(html, encoding="utf-8")
-        print(f"Successfully generated custom premium mistake gallery ({'grayscale' if args.grayscale else 'color'}) at: {gallery_out}")
+        print(f"Successfully generated custom premium mistake gallery at: {gallery_out}")
         print("\nAll pipeline tasks successfully completed!")
 
 if __name__ == "__main__":

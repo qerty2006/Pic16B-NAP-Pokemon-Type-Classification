@@ -50,27 +50,6 @@ TRAIN_TRANSFORM = transforms.Compose([
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
-# --- NEW GRAYSCALE TRANSFORMS ---
-# Uses num_output_channels=3 so the EfficientNet backbone still receives the 3-channel 
-# tensor it expects, avoiding shape mismatch errors with pre-trained weights.
-GRAYSCALE_DEFAULT_TRANSFORM = transforms.Compose([
-    transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
-    transforms.Grayscale(num_output_channels=3),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
-
-GRAYSCALE_TRAIN_TRANSFORM = transforms.Compose([
-    transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
-    transforms.Grayscale(num_output_channels=3),
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
-    transforms.ToTensor(),
-    transforms.RandomHorizontalFlip(p=0.5), # Swaps facing direction
-    transforms.ColorJitter(brightness=0.15, contrast=0.15),  # Removed saturation shift
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-])
-
 
 def rgba_to_rgb(img: Image.Image) -> Image.Image:
     """Composite an RGBA sprite onto a white background and return an RGB image.
@@ -137,6 +116,13 @@ def gen_stratified_split(index, val_frac=0.15, test_frac=0.15, seed=42):
     by_stratum = {}
     for pokemon_id, stratum in id_to_stratum.items():
         by_stratum.setdefault(stratum, []).append(pokemon_id)
+
+        ''' This portion is not needed most likely and causing problems
+        folder_name = path.parent.name
+        pokemon_id = int(folder_name.split("-")[0])
+        gen = get_generation(pokemon_id, folder_name)
+        is_dual = int(label.sum()) >= 2
+        by_stratum.setdefault((gen, is_dual), []).append(i) '''
 
     train_idx, val_idx, test_idx = [], [], []
     rng = np.random.default_rng(seed)
