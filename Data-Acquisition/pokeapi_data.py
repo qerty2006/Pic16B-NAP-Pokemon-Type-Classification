@@ -3,11 +3,14 @@ import os
 import json
 from tqdm import tqdm
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_DATA_FOLDER = os.path.join(BASE_DIR, "pokeapi_data")
+
 #pulls all pokemon's data and puts into a folder called pokeapi_data
 #each pokemon has its own folder with its data
 def pull_pokemon_data_by_index(
     species_url: str = "https://pokeapi.co/api/v2/pokemon-species/", 
-    data_folder: str = "pokeapi_data",
+    data_folder: str = DEFAULT_DATA_FOLDER,
     start_index: int = 1,
     end_index: int = 1025):
     

@@ -56,7 +56,7 @@ MODEL_DESCRIPTIONS = {
             "The final layer outputs 18 logits (one per type) and sigmoid activation allows "
             "predicting both types simultaneously for dual-type Pokemon."
         ),
-        "pipeline": "224x224 RGB -&gt; EfficientNet-B0 backbone -&gt; Linear(1280, 18) -&gt; Sigmoid -&gt; top-k prediction",
+        "pipeline": "224x224 RGB -&gt; EfficientNet-B0 backbone -&gt; Linear(1280, 18) -&gt; Sigmoid -&gt; gap-threshold prediction",
         "color": "#ff4a9e",
     },
 }
@@ -72,8 +72,9 @@ at every position. Deeper layers compose these into higher-level concepts like "
 EfficientNet-B0 also starts with <strong>ImageNet pretrained weights</strong>, meaning it already knows how to detect edges,
 textures, and shapes before seeing a single Pokemon. The baselines start from scratch with raw pixels.</p>
 
-<p>Finally, the CNN outputs a probability for all 18 types simultaneously, making <strong>dual-type prediction</strong> natural.
-The baselines are hard single-label classifiers and can never predict a secondary type.</p>
+<p>Finally, the CNN outputs a probability for all 18 types simultaneously. Evaluation always keeps the highest-probability
+type and keeps the second-highest type when its probability is within the shared gap threshold. The baselines are hard
+single-label classifiers and can never predict a secondary type.</p>
 """
 
 
