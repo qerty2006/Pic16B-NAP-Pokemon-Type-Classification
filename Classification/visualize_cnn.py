@@ -157,21 +157,21 @@ def main():
             # Plot Red Conv
             ax = axes[2, map_idx]
             ax.imshow(out_r[map_idx], cmap='coolwarm', vmin=-c_max, vmax=c_max)
-            if map_idx == 0: ax.set_title(f"Red Conv ($X_R \\star W_R$)\nCh {map_idx}", fontsize=10)
+            if map_idx == 0: ax.set_title(f"Red Conv ($X_R \star W_R$)\nCh {map_idx}", fontsize=10)
             else: ax.set_title(f"Ch {map_idx}", fontsize=10)
             ax.axis('off')
 
             # Plot Green Conv
             ax = axes[3, map_idx]
             ax.imshow(out_g[map_idx], cmap='coolwarm', vmin=-c_max, vmax=c_max)
-            if map_idx == 0: ax.set_title(f"Green Conv ($X_G \\star W_G$)\nCh {map_idx}", fontsize=10)
+            if map_idx == 0: ax.set_title(f"Green Conv ($X_G \star W_G$)\nCh {map_idx}", fontsize=10)
             else: ax.set_title(f"Ch {map_idx}", fontsize=10)
             ax.axis('off')
 
             # Plot Blue Conv
             ax = axes[4, map_idx]
             ax.imshow(out_b[map_idx], cmap='coolwarm', vmin=-c_max, vmax=c_max)
-            if map_idx == 0: ax.set_title(f"Blue Conv ($X_B \\star W_B$)\nCh {map_idx}", fontsize=10)
+            if map_idx == 0: ax.set_title(f"Blue Conv ($X_B \star W_B$)\nCh {map_idx}", fontsize=10)
             else: ax.set_title(f"Ch {map_idx}", fontsize=10)
             ax.axis('off')
 

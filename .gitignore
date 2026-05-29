@@ -11,9 +11,7 @@ pokerogue_sprites/
 pokerogue_sprites_backup/
 split_sprites/
 Classification/checkpoints/
-Classification/checkpoints*/
 Classification/results/
-Classification/results*/
 Classification/.index_cache.pkl
 
 # Python

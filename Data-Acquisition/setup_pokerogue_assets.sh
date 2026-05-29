@@ -6,9 +6,6 @@
 TARGET_DIR="pokerogue_sprites"
 REPO_URL="https://github.com/pagefaultgames/pokerogue-assets.git"
 TEMP_DIR=".tmp_assets"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-cd "$SCRIPT_DIR" || exit 1
 
 # Check if target already exists
 if [ -d "$TARGET_DIR" ]; then

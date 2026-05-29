@@ -4,9 +4,6 @@ import json
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_DATA_FOLDER = os.path.join(BASE_DIR, "pokeapi_data")
-
 
 def is_complete(species_dir, species_data):
     expected = {v['pokemon']['name'] + '.json' for v in species_data['varieties']}
@@ -61,7 +58,7 @@ def fetch_pokemon(i, species_url, data_folder):
 
 def pull_pokemon_data_by_index(
     species_url: str = "https://pokeapi.co/api/v2/pokemon-species/",
-    data_folder: str = DEFAULT_DATA_FOLDER,
+    data_folder: str = "pokeapi_data",
     start_index: int = 1,
     end_index: int = 1025,
     workers: int = 20):
