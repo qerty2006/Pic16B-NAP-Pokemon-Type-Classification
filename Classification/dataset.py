@@ -42,10 +42,9 @@ DEFAULT_TRANSFORM = transforms.Compose([
 
 TRAIN_TRANSFORM = transforms.Compose([
     transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
-    transforms.RandomHorizontalFlip(),
+    transforms.RandomHorizontalFlip(),  # Swaps facing direction
     transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
     transforms.ToTensor(),
-    transforms.RandomHorizontalFlip(p=0.5), # Swaps facing direction
     transforms.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.7),  # Shifts color values slightly
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
@@ -63,10 +62,9 @@ GRAYSCALE_DEFAULT_TRANSFORM = transforms.Compose([
 GRAYSCALE_TRAIN_TRANSFORM = transforms.Compose([
     transforms.Resize((224, 224), interpolation=InterpolationMode.NEAREST),
     transforms.Grayscale(num_output_channels=3),
-    transforms.RandomHorizontalFlip(),
+    transforms.RandomHorizontalFlip(),  # Swaps facing direction
     transforms.RandomAffine(degrees=0, translate=(0.1, 0.1), interpolation=InterpolationMode.NEAREST),
     transforms.ToTensor(),
-    transforms.RandomHorizontalFlip(p=0.5), # Swaps facing direction
     transforms.ColorJitter(brightness=0.15, contrast=0.15),  # Removed saturation shift
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
@@ -171,7 +169,9 @@ def gen_gen_split(index, train_gens=(1, 2, 3), val_frac=0.15, test_gens=(4, 5, 6
     
     for i, (path, label) in enumerate(index):
         folder_name = path.parent.name
-        pokemon_id = int(folder_name.split("-")[0])
+        pokemon_id = parse_folder_id(folder_name)
+        if pokemon_id is None:
+            continue
         gen = get_generation(pokemon_id, folder_name)
         
         if gen in train_gens:
