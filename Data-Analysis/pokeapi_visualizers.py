@@ -4,11 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.colors as pc
 from collections import Counter
-from pathlib import Path
 from plotly.subplots import make_subplots
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DATA_DIR = PROJECT_ROOT / "Data-Acquisition" / "pokeapi_data"
 
 GAME_TO_GEN = {
     "red-blue": 1, "yellow": 1, "red-green-japan": 1, "blue-japan": 1,
@@ -24,15 +20,14 @@ GAME_TO_GEN = {
 
 def _get_type_distribution_data(
     generation: int | list[int] = 0,
-    data_dir: str | Path = DEFAULT_DATA_DIR,
+    data_dir: str = "pokeapi_data",
     fixed_types: list[str] | None = None
 ):
     """
     Helper function to aggregate type data and expand it for square pillar visualization.
     Returns (z_expanded, x_coords, y_coords, unique_types, customdata)
     """
-    data_dir = Path(data_dir)
-    if not data_dir.exists():
+    if not os.path.exists(data_dir):
         return None
 
     # Normalize generation filter to a list
@@ -44,12 +39,13 @@ def _get_type_distribution_data(
     type_combos = []
     
     # Iterate through each species folder
-    for folder_path in sorted(data_dir.iterdir()):
-        if not folder_path.is_dir():
+    for folder_name in sorted(os.listdir(data_dir)):
+        folder_path = os.path.join(data_dir, folder_name)
+        if not os.path.isdir(folder_path):
             continue
             
-        species_file = folder_path / "species.json"
-        if not species_file.exists():
+        species_file = os.path.join(folder_path, "species.json")
+        if not os.path.exists(species_file):
             continue
             
         with open(species_file, "r") as f:
@@ -66,10 +62,11 @@ def _get_type_distribution_data(
             species_gen = 0
             
         species_combos = set()
-        for variety_path in folder_path.iterdir():
-            if variety_path.name == "species.json" or variety_path.suffix != ".json":
+        for variety_file in os.listdir(folder_path):
+            if variety_file == "species.json" or not variety_file.endswith(".json"):
                 continue
                 
+            variety_path = os.path.join(folder_path, variety_file)
             with open(variety_path, "r") as f:
                 try:
                     variety_data = json.load(f)
@@ -164,7 +161,7 @@ def _get_type_distribution_data(
 
 def type_distribution(
     generation: int | list[int] = 0,
-    data_dir: str | Path = DEFAULT_DATA_DIR,
+    data_dir: str = "pokeapi_data",
     filename: str | None = None,
     show_plot: bool = True
     ):
@@ -226,14 +223,13 @@ def type_distribution(
         fig.show()
 
 def generation_type_distribution(
-    data_dir: str | Path = DEFAULT_DATA_DIR,
+    data_dir: str = "pokeapi_data",
     filename: str | None = None
 ):
     """
     Makes a 3D plot of the type distribution for each generation, with each generation having its own subplot in one big plot.
     """
-    data_dir = Path(data_dir)
-    if not data_dir.exists():
+    if not os.path.exists(data_dir):
         print(f"Error: Data directory '{data_dir}' not found.")
         return
 
@@ -247,10 +243,11 @@ def generation_type_distribution(
 
     # Determine available generations by reading a sample of folders or all of them
     unique_gens_set = set()
-    for folder_path in data_dir.iterdir():
-        if not folder_path.is_dir(): continue
-        species_file = folder_path / "species.json"
-        if species_file.exists():
+    for folder_name in os.listdir(data_dir):
+        folder_path = os.path.join(data_dir, folder_name)
+        if not os.path.isdir(folder_path): continue
+        species_file = os.path.join(folder_path, "species.json")
+        if os.path.exists(species_file):
             with open(species_file, "r") as f:
                 try:
                     species_data = json.load(f)
