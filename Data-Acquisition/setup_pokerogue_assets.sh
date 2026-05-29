@@ -42,7 +42,7 @@ if git pull --depth 1 origin main --quiet 2>/dev/null || \
     
     cd ..
     
-    # Move the assets to the project root
+    # Move the assets into Data-Acquisition/pokerogue_sprites
     if [ -d "$TEMP_DIR/images/pokemon" ]; then
         mv "$TEMP_DIR/images/pokemon" "$TARGET_DIR"
         rm -rf "$TEMP_DIR"

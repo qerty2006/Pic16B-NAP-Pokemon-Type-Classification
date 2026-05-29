@@ -2,15 +2,17 @@ import os
 import subprocess
 import sys
 
+POKEAPI_DIR = os.path.join("Data-Acquisition", "pokeapi_data")
+
 def main():
     print("=== Pokemon Type Classification Analysis ===")
     
     # 1. Check for data
-    if not os.path.exists("pokeapi_data"):
+    if not os.path.exists(POKEAPI_DIR):
         print("\n[1/2] Data not found. Running data acquisition...")
         subprocess.run([sys.executable, "Data-Acquisition/pokeapi_data.py"], check=True)
     else:
-        print("\n[1/2] Data directory 'pokeapi_data' found. Skipping acquisition.")
+        print(f"\n[1/2] Data directory '{POKEAPI_DIR}' found. Skipping acquisition.")
     
     # 2. Run visualization
     print("\n[2/2] Generating visualizations...")

@@ -45,4 +45,4 @@ with ThreadPoolExecutor() as executor:
     for _ in tqdm(as_completed(futures), total=len(futures), desc="Splitting sprites"):
         pass
 
-print("Done! Check the 'split_sprites' folder.")
+print(f"Done! Check the '{output_folder}' folder.")
