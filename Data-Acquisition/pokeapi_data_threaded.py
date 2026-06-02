@@ -58,7 +58,7 @@ def fetch_pokemon(i, species_url, data_folder):
 
 def pull_pokemon_data_by_index(
     species_url: str = "https://pokeapi.co/api/v2/pokemon-species/",
-    data_folder: str = "pokeapi_data",
+    data_folder: str = "Classification/pokeapi_data",
     start_index: int = 1,
     end_index: int = 1025,
     workers: int = 20):

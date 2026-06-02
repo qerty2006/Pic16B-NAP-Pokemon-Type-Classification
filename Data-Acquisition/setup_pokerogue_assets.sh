@@ -3,7 +3,7 @@
 # This script downloads the images/pokemon directory from the pokerogue-assets repository
 # It uses sparse-checkout to minimize download size.
 
-TARGET_DIR="pokerogue_sprites"
+TARGET_DIR="Classification/pokerogue_sprites"
 REPO_URL="https://github.com/pagefaultgames/pokerogue-assets.git"
 TEMP_DIR=".tmp_assets"
 

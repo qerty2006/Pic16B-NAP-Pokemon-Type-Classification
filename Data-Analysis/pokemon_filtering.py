@@ -1,3 +1,4 @@
+from plotly.graph_objs import _densitymapbox
 import os
 import json
 
@@ -67,7 +68,7 @@ def identify_pokemon_by_criteria(generations, typing, order_exact=False, loose=F
         
         # If not found, try current directory
         if not os.path.exists(data_dir):
-            data_dir = "pokeapi_data"
+            data_dir = "Classificationc/pokeapi_data"
             
     if not os.path.exists(data_dir):
         raise FileNotFoundError(f"Data directory not found: {data_dir}")
@@ -162,25 +163,30 @@ def identify_pokemon_by_criteria(generations, typing, order_exact=False, loose=F
     return len(df), df
 
 if __name__ == "__main__":
+    from pathlib import Path
+    
     # Example usage:
     # All generations, Water/Flying types
+    base_dir = Path(__file__).parent.parent
+    pokeapi_data=base_dir/"Classification"/"pokeapi_data"
+    
     gens = []
     types = ('Water', 'Flying')
     
-    count, df = identify_pokemon_by_criteria(gens, types, order_exact=False)
-    print(f"\n--- All Generations, Types {types}, order_exact=False ---")
+    count, df = identify_pokemon_by_criteria(gens, types, order_exact=False, data_dir=pokeapi_data)
+    print(f"\n--- All Generations, Types {types}, order_exact=False ---")   
     print(f"Total count: {count}")
     print(df.head().to_string(index=False)) # Show first few
     
     # Mono-type test (Strict)
     types_mono = ('Fire',)
-    count_mono, df_mono = identify_pokemon_by_criteria([1], types_mono, loose=False)
+    count_mono, df_mono = identify_pokemon_by_criteria([1], types_mono, loose=False, data_dir=pokeapi_data)
     print(f"\n--- Generation 1, Types {types_mono} (Strict) ---")
     print(f"Total count: {count_mono}")
     print(df_mono.to_string(index=False))
     
     # Mono-type test (Loose)
-    count_loose, df_loose = identify_pokemon_by_criteria([1], types_mono, loose=True)
+    count_loose, df_loose = identify_pokemon_by_criteria([1], types_mono, loose=True, data_dir=pokeapi_data)
     print(f"\n--- Generation 1, Types {types_mono} (Loose) ---")
     print(f"Total count: {count_loose}")
     print(df_loose.to_string(index=False))

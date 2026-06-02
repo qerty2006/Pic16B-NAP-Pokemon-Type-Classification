@@ -19,8 +19,8 @@ TYPES = [
 TYPE_TO_IDX = {t: i for i, t in enumerate(TYPES)}
 
 PROJECT_ROOT = Path(__file__).parent.parent
-SPRITES_DIR = PROJECT_ROOT / "Data-Acquisition" / "split_sprites"
-POKEAPI_DIR = PROJECT_ROOT / "Data-Acquisition" / "pokeapi_data"
+SPRITES_DIR = Path(__file__).parent / "split_sprites"
+POKEAPI_DIR = Path(__file__).parent / "pokeapi_data"
 INDEX_CACHE = Path(__file__).parent / ".index_cache.pkl"
 
 # Bump when label format or stored fields change — stale cache will load wrong label shapes

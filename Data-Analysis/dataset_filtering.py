@@ -1,4 +1,9 @@
 from pokemon_filtering import identify_pokemon_by_criteria  
+from pathlib import Path
+
+base_dir = Path(__file__).parent.parent
+pokeapi_data=base_dir/"Classification"/"pokeapi_data"
+
 
 # How Many Mono Normal Pokemon?
 normal_count, normal_df = identify_pokemon_by_criteria(
@@ -6,7 +11,7 @@ normal_count, normal_df = identify_pokemon_by_criteria(
     typing=('Normal',), 
     order_exact=False, 
     loose=False, 
-    data_dir="pokeapi_data")
+    data_dir=pokeapi_data)
 
 # How Many Mono Water Pokemon?
 water_count, water_df = identify_pokemon_by_criteria(
@@ -14,10 +19,10 @@ water_count, water_df = identify_pokemon_by_criteria(
     typing=('Water',), 
     order_exact=False, 
     loose=False, 
-    data_dir="pokeapi_data")
+    data_dir=pokeapi_data)
 
 # Most Common Dual Type?
-_, all_df = identify_pokemon_by_criteria(generations=None, typing=None, data_dir="pokeapi_data")
+_, all_df = identify_pokemon_by_criteria(generations=None, typing=None, data_dir=pokeapi_data)
 dual_df = all_df[all_df['type2'] != 'None'].copy()
 dual_df['combo'] = dual_df.apply(lambda x: tuple(sorted([x['type1'], x['type2']])), axis=1)
 dual_counts = dual_df['combo'].value_counts()

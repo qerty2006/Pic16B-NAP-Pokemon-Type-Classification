@@ -7,9 +7,9 @@ from PIL import Image
 #Setting up paths and counter
 pokemon_data=[]
 counter=0
-base_dir = Path(__file__).parent
-sprites=base_dir/"split_sprites"
-pokeapi_data=base_dir/"pokeapi_data"
+base_dir = Path(__file__).parent.parent
+sprites=base_dir/"Classification"/"split_sprites"
+pokeapi_data=base_dir/"Classification"/"pokeapi_data"
 
 #folders of pokeapi data
 pokemon_folders = sorted([f for f in pokeapi_data.iterdir()])

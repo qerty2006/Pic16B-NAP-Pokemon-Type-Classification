@@ -8,7 +8,7 @@ base_dir = Path(__file__).parent
 root_dir = base_dir.parent
 
 # check Data-Acquisition/ first, then project root
-_candidates = [base_dir / "pokerogue_sprites", root_dir / "pokerogue_sprites"]
+_candidates = [base_dir / "pokerogue_sprites", root_dir / "Classification" / "pokerogue_sprites"]
 sprites_folder = next((p for p in _candidates if p.exists()), _candidates[0])
 output_folder = sprites_folder.parent / "split_sprites"
 

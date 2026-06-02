@@ -223,7 +223,7 @@ def type_distribution(
         fig.show()
 
 def generation_type_distribution(
-    data_dir: str = "pokeapi_data",
+    data_dir: str = "Classification/pokeapi_data",
     filename: str | None = None
 ):
     """

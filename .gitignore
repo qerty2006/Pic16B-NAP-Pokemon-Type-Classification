@@ -4,6 +4,7 @@ PATRICK_TODO*
 
 #Testng directory before pushing to github
 NISH/
+Patrick/
 
 # Local data and assets
 pokeapi_data/
@@ -13,6 +14,7 @@ split_sprites/
 Classification/checkpoints/
 Classification/results/
 Classification/.index_cache.pkl
+backup-sprites/
 
 # Python
 __pycache__/

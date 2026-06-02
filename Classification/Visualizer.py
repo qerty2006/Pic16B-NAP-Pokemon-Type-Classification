@@ -20,12 +20,7 @@ from dataset import PokemonSpriteDataset
 from dataset import gen_stratified_split
 RESULTS_DIR = Path(__file__).parent / "results"
 
-dataset = PokemonSpriteDataset()
-_, _, test_idx = gen_stratified_split(dataset.index)
-test_paths = [dataset.index[i][0] for i in test_idx]
-y_true  = np.load(RESULTS_DIR / "y_true.npy")
-y_pred  = np.load(RESULTS_DIR / "y_pred.npy")
-y_probs = np.load(RESULTS_DIR / "y_probs.npy")
+
 
 
 def save_all_mistake_examples_with_probs(y_true, y_pred, y_probs, test_paths, n_test=None):
@@ -123,4 +118,10 @@ def save_all_mistake_examples_with_probs(y_true, y_pred, y_probs, test_paths, n_
 
 
 if __name__ == "__main__":
+    dataset = PokemonSpriteDataset()
+    _, _, test_idx = gen_stratified_split(dataset.index)
+    test_paths = [dataset.index[i][0] for i in test_idx]
+    y_true  = np.load(RESULTS_DIR / "y_true.npy")
+    y_pred  = np.load(RESULTS_DIR / "y_pred.npy")
+    y_probs = np.load(RESULTS_DIR / "y_probs.npy")
     save_all_mistake_examples_with_probs(y_true, y_pred, y_probs, test_paths, n_test=None)
