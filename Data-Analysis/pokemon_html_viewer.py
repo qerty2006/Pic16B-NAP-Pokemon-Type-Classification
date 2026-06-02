@@ -95,8 +95,8 @@ def get_pokeapi_data_dir():
 
 def fetch_pokemon_details(pokedex_number, name_or_variety=None, data_dir=None):
     """
-    Fetch comprehensive details for a Pokemon from its JSON folders.
-    Enriches basic DataFrame entries with stats, high-res official artwork, weight, height.
+    Fetch details for all varieties of a Pokemon from its JSON folder.
+    Returns a list of variety detail dicts.
     """
     if data_dir is None:
         data_dir = get_pokeapi_data_dir()
@@ -111,124 +111,143 @@ def fetch_pokemon_details(pokedex_number, name_or_variety=None, data_dir=None):
             break
             
     if not folder_path:
-        return None
+        return []
         
-    # 2. Find the variety json file
-    variety_json = None
-    species_name = folder_path.name.split("_", 1)[1]
-    
-    # If a variety name is provided, try that first
+    # 2. Find all variety JSON files
+    variety_files = []
     if name_or_variety:
-        # Variety name might have different casing/suffixes
         target_name = name_or_variety.lower().replace(" ", "-")
         candidate = folder_path / f"{target_name}.json"
         if candidate.exists():
-            variety_json = candidate
+            variety_files = [candidate]
             
-    # Fallback/Default search
-    if not variety_json or not variety_json.exists():
-        # Find any json ending with variety name or not species.json
-        jsons = [f for f in folder_path.glob("*.json") if f.name != "species.json"]
-        if jsons:
-            # Prefer the default variety if it matches the folder/species name
-            default_json = folder_path / f"{species_name}.json"
-            variety_json = default_json if default_json.exists() else jsons[0]
-            
-    if not variety_json or not variety_json.exists():
-        return None
+    if not variety_files:
+        variety_files = [f for f in folder_path.glob("*.json") if f.name != "species.json"]
         
-    # 3. Parse JSON files
-    try:
-        with open(variety_json, "r") as f:
-            data = json.load(f)
-            
-        species_file = folder_path / "species.json"
-        species_data = {}
-        if species_file.exists():
+    if not variety_files:
+        return []
+        
+    species_file = folder_path / "species.json"
+    species_data = {}
+    if species_file.exists():
+        try:
             with open(species_file, "r") as f:
                 species_data = json.load(f)
-    except Exception as e:
-        print(f"Error parsing JSON for #{pokedex_number}: {e}")
-        return None
-        
-    # Extract types
-    types = sorted(data.get("types", []), key=lambda x: x["slot"])
-    type1 = types[0]["type"]["name"].capitalize() if len(types) > 0 else "None"
-    type2 = types[1]["type"]["name"].capitalize() if len(types) > 1 else "None"
-    
-    # Extract sprites (prefer official artwork, fall back to front_default)
-    sprites = data.get("sprites", {})
-    official_artwork = sprites.get("other", {}).get("official-artwork", {}).get("front_default")
-    sprite_url = official_artwork or sprites.get("front_default") or ""
-    
-    # Extract stats
-    stats = {s["stat"]["name"]: s["base_stat"] for s in data.get("stats", [])}
-    
-    # Extract effective generation
+        except Exception as e:
+            print(f"Error parsing species JSON for #{pokedex_number}: {e}")
+            
+    # Extract species generation
     species_gen_url = species_data.get("generation", {}).get("url", "")
     try:
         species_gen = int(species_gen_url.strip("/").split("/")[-1])
     except (ValueError, IndexError):
         species_gen = 0
-    eff_gen = get_effective_generation(data, species_gen)
-    
-    # 4. Find all split sprite directories associated with this ID
-    split_dir = Path(data_dir).parent / "split_sprites"
-    pokerogue_sprites = []
-    if split_dir.exists() and split_dir.is_dir():
-        for item in split_dir.iterdir():
-            if item.is_dir():
-                name_part = item.name
-                if name_part == str(pokedex_number) or name_part.startswith(f"{pokedex_number}-"):
-                    if name_part == str(pokedex_number):
-                        label = "Default"
-                    else:
-                        label = name_part.split("-", 1)[1].replace("-", " ").capitalize()
-                    
-                    # Gather the individual split PNG frames (e.g. 0001.png, 0002.png) sorted
-                    frames = sorted([f.name for f in item.glob("*.png")])
-                    
-                    if frames:
-                        pokerogue_sprites.append({
-                            "label": label,
-                            "folder_name": item.name,
-                            "preview_url": f"Classification/split_sprites/{item.name}/{frames[0]}",
-                            "frames": [f"Classification/split_sprites/{item.name}/{f}" for f in frames]
-                        })
-    
-    # Sort pokerogue_sprites so Default comes first
-    pokerogue_sprites.sort(key=lambda x: 0 if x["label"] == "Default" else 1)
 
+    results = []
+    for variety_json in variety_files:
+        try:
+            with open(variety_json, "r") as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"Error parsing variety JSON {variety_json.name}: {e}")
+            continue
 
-    return {
-        "id": pokedex_number,
-        "name": data.get("name", "").capitalize(),
-        "type1": type1,
-        "type2": type2,
-        "sprite_url": sprite_url,
-        "generation": eff_gen,
-        "height": data.get("height", 0) / 10.0, # Convert to meters
-        "weight": data.get("weight", 0) / 10.0, # Convert to kg
-        "stats": {
-            "hp": stats.get("hp", 0),
-            "attack": stats.get("attack", 0),
-            "defense": stats.get("defense", 0),
-            "sp_atk": stats.get("special-attack", 0),
-            "sp_def": stats.get("special-defense", 0),
-            "speed": stats.get("speed", 0),
-        },
-        "pokerogue_sprites": pokerogue_sprites
-    }
+        # Extract types
+        types = sorted(data.get("types", []), key=lambda x: x["slot"])
+        type1 = types[0]["type"]["name"].capitalize() if len(types) > 0 else "None"
+        type2 = types[1]["type"]["name"].capitalize() if len(types) > 1 else "None"
+        
+        # Extract sprites
+        sprites = data.get("sprites", {})
+        official_artwork = sprites.get("other", {}).get("official-artwork", {}).get("front_default")
+        sprite_url = official_artwork or sprites.get("front_default") or ""
+        
+        # Extract stats
+        stats = {s["stat"]["name"]: s["base_stat"] for s in data.get("stats", [])}
+        eff_gen = get_effective_generation(data, species_gen)
+        
+        variety_name = data.get("name", "").capitalize()
+        # Find split sprite directories for this specific variety
+        split_dir = Path(data_dir).parent / "split_sprites"
+        pokerogue_sprites = []
+        
+        if split_dir.exists() and split_dir.is_dir():
+            target_var_name = data.get("name", "").lower()
+            
+            # Determine expected folder names in split_sprites based on regional offsets or suffixes
+            expected_names = []
+            
+            # 1. Check regional forms by offset
+            if "-alola" in target_var_name:
+                expected_names.append((str(pokedex_number + 2000), "Alolan"))
+            elif "-galar" in target_var_name:
+                expected_names.append((str(pokedex_number + 4000), "Galarian"))
+            elif "-hisui" in target_var_name:
+                expected_names.append((str(pokedex_number + 6000), "Hisuian"))
+            elif "-paldea" in target_var_name:
+                expected_names.append((str(pokedex_number + 8000), "Paldean"))
+                
+            # 2. Check Gigantamax forms
+            if "-gmax" in target_var_name or "-gigantamax" in target_var_name:
+                expected_names.append((f"{pokedex_number}-gigantamax", "Gigantamax"))
+                expected_names.append((f"{pokedex_number}-gmax", "Gigantamax"))
+                
+            # 3. Base matching and suffix matching
+            if not expected_names:
+                expected_names.append((target_var_name, "Default"))
+                if target_var_name == folder_path.name.split("_", 1)[1].lower():
+                    expected_names.append((str(pokedex_number), "Default"))
+                
+                # Check for suffix forms like -mega
+                for suffix in ["mega", "primal", "origin", "therian", "incarnate", "resolute", "dusk", "midnight", "school", "zen"]:
+                    if f"-{suffix}" in target_var_name:
+                        expected_names.append((f"{pokedex_number}-{suffix}", suffix.capitalize()))
+                        
+            # Scan split_sprites directory for matches
+            for item in split_dir.iterdir():
+                if item.is_dir():
+                    name_part = item.name.lower()
+                    for exp_name, lbl in expected_names:
+                        if name_part == exp_name:
+                            frames = sorted([f.name for f in item.glob("*.png")])
+                            if frames:
+                                pokerogue_sprites.append({
+                                    "label": lbl,
+                                    "folder_name": item.name,
+                                    "preview_url": f"Classification/split_sprites/{item.name}/{frames[0]}",
+                                    "frames": [f"Classification/split_sprites/{item.name}/{f}" for f in frames]
+                                })
+                            
+        pokerogue_sprites.sort(key=lambda x: 0 if x["label"] == "Default" else 1)
+        
+        # Build clean variety object
+        results.append({
+            "id": pokedex_number,
+            "variety_name": data.get("name", ""),
+            "name": variety_name.replace("-", " "),
+            "type1": type1,
+            "type2": type2,
+            "sprite_url": sprite_url,
+            "generation": eff_gen,
+            "height": data.get("height", 0) / 10.0,
+            "weight": data.get("weight", 0) / 10.0,
+            "stats": {
+                "hp": stats.get("hp", 0),
+                "attack": stats.get("attack", 0),
+                "defense": stats.get("defense", 0),
+                "sp_atk": stats.get("special-attack", 0),
+                "sp_def": stats.get("special-defense", 0),
+                "speed": stats.get("speed", 0),
+            },
+            "pokerogue_sprites": pokerogue_sprites
+        })
+        
+    return results
 
 
 def generate_html(indices_or_df, output_file="pokemon_viewer.html", data_dir=None):
     """
-    Generate an ultra-premium HTML page visualizing the Pokemon.
-    
-    Args:
-        indices_or_df: Either a range/list of pokedex numbers, or a pandas DataFrame.
-        output_file: Target HTML output filepath.
-        data_dir: Source pokeapi_data directory.
+    Generate an HTML page visualizing all Pokemon varieties.
     """
     if data_dir is None:
         data_dir = get_pokeapi_data_dir()
@@ -238,31 +257,28 @@ def generate_html(indices_or_df, output_file="pokemon_viewer.html", data_dir=Non
     if isinstance(indices_or_df, pd.DataFrame):
         print(f"Processing DataFrame with {len(indices_or_df)} rows...")
         for _, row in indices_or_df.iterrows():
-            # Check for pokedex number column names (could be pokedex_number or id)
             idx = row.get("pokedex_number") or row.get("id") or row.get("pokedex_id")
             name = row.get("name")
             if pd.notna(idx):
-                details = fetch_pokemon_details(int(idx), name, data_dir)
-                if details:
+                details_list = fetch_pokemon_details(int(idx), name, data_dir)
+                for details in details_list:
                     # Keep customized type values if DataFrame is pre-filtered/modified
                     if "type1" in row: details["type1"] = row["type1"].capitalize()
                     if "type2" in row: details["type2"] = row["type2"].capitalize() if pd.notna(row["type2"]) else "None"
                     if "generation" in row: details["generation"] = int(row["generation"])
                     pokemon_list.append(details)
     else:
-        # Assumed to be list, range, or iterable of integers
         indices = list(indices_or_df)
         print(f"Processing range of {len(indices)} Pokemon indices...")
         for idx in indices:
-            details = fetch_pokemon_details(idx, data_dir=data_dir)
-            if details:
-                pokemon_list.append(details)
+            details_list = fetch_pokemon_details(idx, data_dir=data_dir)
+            pokemon_list.extend(details_list)
                 
     if not pokemon_list:
         print("No Pokemon data found. The generated HTML will be empty.")
         
-    # Sort by ID
-    pokemon_list.sort(key=lambda x: x["id"])
+    # Sort by ID, then variety name
+    pokemon_list.sort(key=lambda x: (x["id"], x["variety_name"]))
     
     # Render premium HTML
     html_content = build_html_template(pokemon_list)
@@ -270,6 +286,20 @@ def generate_html(indices_or_df, output_file="pokemon_viewer.html", data_dir=Non
     output_path = Path(output_file)
     output_path.write_text(html_content, encoding="utf-8")
     print(f"Successfully generated visualizer HTML: {output_path.resolve()}")
+    
+    # Also write to root directory/Data-Analysis directory secondary paths to ensure consistency
+    alt_paths = [
+        Path("/Users/nt/Documents/github/Pic16B-NAP-Pokemon-Type-Classification/pokemon_viewer.html"),
+        Path("/Users/nt/Documents/github/Pic16B-NAP-Pokemon-Type-Classification/Data-Analysis/pokemon_viewer.html")
+    ]
+    for alt_path in alt_paths:
+        if alt_path.resolve() != output_path.resolve():
+            try:
+                alt_path.write_text(html_content, encoding="utf-8")
+                print(f"Also synced to: {alt_path.resolve()}")
+            except Exception as e:
+                pass
+                
     return output_path
 
 def build_html_template(pokemon_list):
@@ -791,7 +821,6 @@ def build_html_template(pokemon_list):
                 <option value="id-asc">Sort by ID (Asc)</option>
                 <option value="id-desc">Sort by ID (Desc)</option>
                 <option value="name-asc">Sort by Name (A-Z)</option>
-                <option value="bst-desc">Sort by BST (High-Low)</option>
             </select>
         </div>
     </section>
@@ -815,6 +844,15 @@ def build_html_template(pokemon_list):
         const POKEMON_DATA = {pokemon_json};
         const TYPE_COLORS = {type_colors_json};
         const TYPE_COLORS_RGBA = {type_colors_rgba_json};
+
+        // Dynamically prefix path if loaded from Data-Analysis folder
+        function resolveSpritePath(path) {{
+            if (!path) return "";
+            if (window.location.pathname.includes("/Data-Analysis/")) {{
+                return "../" + path;
+            }}
+            return path;
+        }}
 
         // Render stats & filter choices
         function initDashboard() {{
@@ -894,51 +932,17 @@ def build_html_template(pokemon_list):
                         <img src="${{p.sprite_url}}" class="pokemon-sprite" alt="${{p.name}}" loading="lazy" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${{p.id}}.png'">
                     </div>
                     <h2 class="pokemon-name">${{p.name}}</h2>
-                    <div class="type-badge-container">
+                    <div class="type-badge-container" style="margin-bottom: 0.75rem;">
                         <span class="type-badge" style="background-color: ${{primaryColor}}">${{p.type1}}</span>
                         ${{p.type2 !== "None" ? `<span class="type-badge" style="background-color: ${{secondaryColor}}">${{p.type2}}</span>` : ''}}
                     </div>
                     
-                    <div class="stats-panel">
-                        <div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; background: rgba(0,0,0,0.18); border-radius: 12px; padding: 0.45rem; margin-bottom: 0.6rem; border: 1px solid rgba(255,255,255,0.05); width: 100%;">
-                            <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; margin-right: auto; padding-left: 0.4rem;">Rogue Sprites</span>
-                            <div style="display: flex; gap: 0.35rem; align-items: center;">
-                                ${{p.pokerogue_sprites && p.pokerogue_sprites.length > 0 ? p.pokerogue_sprites.map(s => `
-                                    <img src="${{s.preview_url}}" style="width: 28px; height: 28px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); image-rendering: pixelated;" title="${{s.label}}" loading="lazy" onerror="this.style.display='none'">
-                                `).join('') : '<span style="font-size: 0.7rem; color: var(--text-secondary); opacity: 0.6; padding-right: 0.4rem;">None</span>'}}
-                            </div>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">HP</span>
-                            <div class="stat-bar-container">
-                                <div class="stat-bar" style="width: ${{Math.min(100, (p.stats.hp / 255) * 100)}}%"></div>
-                            </div>
-                            <span class="stat-value">${{p.stats.hp}}</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">ATK</span>
-                            <div class="stat-bar-container">
-                                <div class="stat-bar" style="width: ${{Math.min(100, (p.stats.attack / 190) * 100)}}%"></div>
-                            </div>
-                            <span class="stat-value">${{p.stats.attack}}</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">DEF</span>
-                            <div class="stat-bar-container">
-                                <div class="stat-bar" style="width: ${{Math.min(100, (p.stats.defense / 230) * 100)}}%"></div>
-                            </div>
-                            <span class="stat-value">${{p.stats.defense}}</span>
-                        </div>
-                    </div>
-
-                    <div class="dimensions-row">
-                        <div class="dimension-item">
-                            <div>Height</div>
-                            <div class="dimension-val">${{p.height}} m</div>
-                        </div>
-                        <div class="dimension-item">
-                            <div>Weight</div>
-                            <div class="dimension-val">${{p.weight}} kg</div>
+                    <div style="display: flex; gap: 0.5rem; justify-content: center; align-items: center; background: rgba(0,0,0,0.18); border-radius: 12px; padding: 0.45rem; border: 1px solid rgba(255,255,255,0.05); width: 100%; margin-top: auto;">
+                        <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--text-secondary); letter-spacing: 0.05em; margin-right: auto; padding-left: 0.4rem;">Rogue Sprites</span>
+                        <div style="display: flex; gap: 0.35rem; align-items: center;">
+                            ${{p.pokerogue_sprites && p.pokerogue_sprites.length > 0 ? p.pokerogue_sprites.map(s => `
+                                <img src="${{resolveSpritePath(s.preview_url)}}" style="width: 28px; height: 28px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); image-rendering: pixelated;" title="${{s.label}}" loading="lazy" onerror="this.style.display='none'">
+                            `).join('') : '<span style="font-size: 0.7rem; color: var(--text-secondary); opacity: 0.6; padding-right: 0.4rem;">None</span>'}}
                         </div>
                     </div>
                 `;
@@ -1011,13 +1015,9 @@ def build_html_template(pokemon_list):
 
             // Sorting
             filtered.sort((a, b) => {{
-                const bstA = Object.values(a.stats).reduce((x, y) => x + y, 0);
-                const bstB = Object.values(b.stats).reduce((x, y) => x + y, 0);
-                
                 if (sortBy === "id-asc") return a.id - b.id;
                 if (sortBy === "id-desc") return b.id - a.id;
                 if (sortBy === "name-asc") return a.name.localeCompare(b.name);
-                if (sortBy === "bst-desc") return bstB - bstA;
                 return 0;
             }});
 
@@ -1043,7 +1043,7 @@ def build_html_template(pokemon_list):
                     <img src="${{p.sprite_url}}" style="width: 200px; height: 200px; object-fit: contain; margin-bottom: 2rem; filter: drop-shadow(0 15px 30px rgba(0,0,0,0.4));" onerror="this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${{p.id}}.png'">
                     
                     <!-- PokeRogue Sprites Display Section -->
-                    <div style="width: 100%; text-align: left; margin-bottom: 1.5rem;">
+                    <div style="width: 100%; text-align: left; margin-bottom: 0.5rem;">
                         <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">PokeRogue Sprite Frames</h4>
                         <div style="display: flex; flex-direction: column; gap: 1.2rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 1.25rem; border-radius: 20px;">
                             ${{p.pokerogue_sprites && p.pokerogue_sprites.length > 0 ? p.pokerogue_sprites.map(s => `
@@ -1055,7 +1055,7 @@ def build_html_template(pokemon_list):
                                     <div style="display: flex; gap: 1rem; align-items: center; background: rgba(0,0,0,0.15); padding: 0.75rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.02);">
                                         <!-- Magnified Detail Panel (Avoids clipping) -->
                                         <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; width: 110px; height: 110px; padding: 0.5rem; transition: background-color 0.25s;">
-                                            <img id="zoom-preview-${{s.folder_name}}" src="${{s.preview_url}}" style="width: 80px; height: 80px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); image-rendering: pixelated;">
+                                            <img id="zoom-preview-${{s.folder_name}}" src="${{resolveSpritePath(s.preview_url)}}" style="width: 80px; height: 80px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); image-rendering: pixelated;">
                                             <span id="zoom-label-${{s.folder_name}}" style="font-size: 0.65rem; font-family: monospace; color: var(--text-secondary); font-weight: 700; margin-top: 0.25rem;">F001</span>
                                         </div>
                                         
@@ -1064,7 +1064,7 @@ def build_html_template(pokemon_list):
                                             ${{s.frames.map((frame, idx) => `
                                                 <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.03); padding: 0.35rem; border-radius: 8px; cursor: pointer; transition: background-color 0.2s, border-color 0.2s;"
                                                      onmouseover="
-                                                        document.getElementById('zoom-preview-${{s.folder_name}}').src='${{frame}}';
+                                                        document.getElementById('zoom-preview-${{s.folder_name}}').src='${{resolveSpritePath(frame)}}';
                                                         document.getElementById('zoom-label-${{s.folder_name}}').innerText='F${{String(idx + 1).padStart(3, '0')}}';
                                                         this.style.background='rgba(255,255,255,0.08)';
                                                         this.style.borderColor='rgba(255,255,255,0.15)';
@@ -1073,7 +1073,7 @@ def build_html_template(pokemon_list):
                                                         this.style.background='rgba(255,255,255,0.02)';
                                                         this.style.borderColor='rgba(255,255,255,0.03)';
                                                      ">
-                                                    <img src="${{frame}}" style="width: 44px; height: 44px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); image-rendering: pixelated;">
+                                                    <img src="${{resolveSpritePath(frame)}}" style="width: 44px; height: 44px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); image-rendering: pixelated;">
                                                     <span style="font-size: 0.55rem; font-family: monospace; color: var(--text-secondary); font-weight: 600;">F${{String(idx + 1).padStart(3, '0')}}</span>
                                                 </div>
                                             `).join('')}}
@@ -1081,31 +1081,6 @@ def build_html_template(pokemon_list):
                                     </div>
                                 </div>
                             `).join('') : '<span style="font-size: 0.9rem; color: var(--text-secondary); padding: 0.5rem;">No PokeRogue split sprite frames found for this Pokemon.</span>'}}
-                    </div>
-
-                    <div style="width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; text-align: left; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 20px; margin-bottom: 1.5rem;">
-                        <div>
-                            <span style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">Height</span>
-                            <div style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 700; color: #fff; margin-top: 0.25rem;">${{p.height}} meters</div>
-                        </div>
-                        <div>
-                            <span style="color: var(--text-secondary); font-size: 0.85rem; font-weight: 600; text-transform: uppercase;">Weight</span>
-                            <div style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; font-weight: 700; color: #fff; margin-top: 0.25rem;">${{p.weight}} kilograms</div>
-                        </div>
-                    </div>
-                    
-                    <div style="width: 100%; text-align: left;">
-                        <h4 style="font-family: 'Outfit', sans-serif; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">Base Stats Profile</h4>
-                        <div style="display: grid; gap: 0.8rem;">
-                            ${{Object.entries(p.stats).map(([name, val]) => `
-                                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem;">
-                                    <span style="color: var(--text-secondary); text-transform: uppercase; font-weight: 700; width: 80px;">${{name.replace('_', ' ')}}</span>
-                                    <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; margin: 0 1rem; overflow: hidden;">
-                                        <div style="height: 100%; background: ${{primaryColor}}; width: ${{Math.min(100, (val / 255) * 100)}}%"></div>
-                                    </div>
-                                    <span style="font-family: 'Outfit', sans-serif; font-weight: 700; width: 30px; text-align: right;">${{val}}</span>
-                                </div>
-                            `).join('')}}
                         </div>
                     </div>
                 </div>
@@ -1144,7 +1119,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate Pokemon HTML Viewer")
     parser.add_argument("--start", type=int, default=1, help="Start Pokedex ID")
     parser.add_argument("--end", type=int, default=1025, help="End Pokedex ID")
-    parser.add_argument("--out", type=str, default="Data-Analysis/pokemon_viewer.html", help="Output HTML file path")
+    parser.add_argument("--out", type=str, default="pokemon_viewer.html", help="Output HTML file path")
     parser.add_argument("--data-dir", type=str, default=None, help="Path to pokeapi_data directory")
     args = parser.parse_args()
     

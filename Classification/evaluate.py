@@ -51,9 +51,6 @@ def collect_predictions(model, loader, device, n_types):
         np.vstack(all_preds),
         np.vstack(all_probs),
     )
-
-
-
 def collect_predictions2(model, loader, device, threshold=0.5):
     """Predict types purely based on a confidence threshold (no top-k cheating)."""
     model.eval()

@@ -202,21 +202,27 @@ def _fetch_entry(sprite_folder, pokeapi_by_id):
         return None
     folder_name_string = sprite_folder.name
     species_name = pokeapi_folder.name.split("_", 1)[1]
-    variety_json = pokeapi_folder / f"{species_name}.json"
-    if not variety_json.exists():
-        return None
+    
     # Form-aware file matching logic
     if "-" in folder_name_string:
         form_suffix = folder_name_string.split("-", 1)[1]
         variety_json = pokeapi_folder / f"{species_name}-{form_suffix}.json"
     else:
-        variety_json = pokeapi_folder / f"{species_name}.json"
+        # Zygarde base form is zygarde-50
+        if species_name == "zygarde":
+            variety_json = pokeapi_folder / "zygarde-50.json"
+        else:
+            variety_json = pokeapi_folder / f"{species_name}.json"
 
     # Fallback to base species JSON if form-specific one doesn't exist
     if not variety_json.exists():
         variety_json = pokeapi_folder / f"{species_name}.json"
         if not variety_json.exists():
-            return None
+            candidates = [f for f in pokeapi_folder.glob("*.json") if f.name != "species.json"]
+            if candidates:
+                variety_json = candidates[0]
+            else:
+                return None
     with open(variety_json) as f:
         data = json.load(f)
 
