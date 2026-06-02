@@ -104,12 +104,42 @@ def print_summary(y_true, y_pred, y_probs):
     except ValueError:
         auc = float("nan")
 
+    # Custom overlap calculations
+    correct_overlap = np.logical_and(y_true, y_pred).sum(axis=1)
+    true_counts = y_true.sum(axis=1)
+    
+    at_least_one = np.mean(correct_overlap >= 1)
+    two_right_all = np.mean(correct_overlap >= 2)
+    
+    # Calculate for dual-type Pokémon specifically
+    dual_mask = (true_counts == 2)
+    two_right_dual = np.mean(correct_overlap[dual_mask] == 2) if dual_mask.any() else 0.0
+
     print("\n=== Overall Metrics ===")
     print(f"  Exact Match Acc:  {acc:.4f}")
     print(f"  F1 (macro):       {f1:.4f}")
     print(f"  Precision:        {prec:.4f}")
     print(f"  Recall:           {rec:.4f}")
     print(f"  ROC-AUC:          {auc:.4f}")
+    print(f"  At Least 1 Right: {at_least_one:.2%}")
+    print(f"  2 Types Right (All):  {two_right_all:.2%}")
+    print(f"  2 Types Right (Dual): {two_right_dual:.2%} (Out of dual-type Pokemon)")
+
+    # Naive baseline comparison (Guessing the most common type)
+    most_common_idx = y_true.sum(axis=0).argmax()
+    most_common_type = TYPES[most_common_idx]
+    y_naive = np.zeros_like(y_true)
+    y_naive[:, most_common_idx] = 1
+    
+    naive_acc = accuracy_score(y_true, y_naive)
+    naive_overlap = np.logical_and(y_true, y_naive).sum(axis=1)
+    naive_at_least_one = np.mean(naive_overlap >= 1)
+    naive_two_right = np.mean(naive_overlap >= 2)
+    
+    print(f"\n=== Naive Baseline (Guessing '{most_common_type.capitalize()}') ===")
+    print(f"  Exact Match Acc:  {naive_acc:.4f}")
+    print(f"  At Least 1 Right: {naive_at_least_one:.2%}")
+    print(f"  2 Types Right:    {naive_two_right:.2%}")
 
     f1_per   = f1_score(y_true, y_pred, average=None, zero_division=0, labels=list(range(len(TYPES))))
     prec_per = precision_score(y_true, y_pred, average=None, zero_division=0, labels=list(range(len(TYPES))))
@@ -244,7 +274,7 @@ def main():
 
     # num_workers=0 loads data in the main process — safe on Windows, lower RAM usage.
     # Increase to 2-4 on Linux/Mac or if you have spare RAM for faster data loading.
-    test_loader = DataLoader(Subset(dataset, test_idx), batch_size=32, shuffle=False, num_workers=4)
+    test_loader = DataLoader(Subset(dataset, test_idx), batch_size=32, shuffle=False, num_workers=0)
     print(f"Test set size: {len(test_idx)}")
 
     test_paths = [dataset.index[i][0] for i in test_idx]
