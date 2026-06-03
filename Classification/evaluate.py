@@ -192,7 +192,7 @@ def img_to_b64(path):
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30, n_test=None):
+def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30, n_test=None, is_grayscale=False):
     """Generate an HTML gallery of misclassified CNN test sprites and save to results/.
 
     Sorts mistakes so fully-wrong predictions appear first, then partial (1 of 2 types correct),
@@ -215,6 +215,7 @@ def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30, n_test=None
     mistakes.sort(key=lambda x: (x[4], -x[3]))
     sample = mistakes[:n]
 
+    img_style = "image-rendering:pixelated; filter: grayscale(100%);" if is_grayscale else "image-rendering:pixelated;"
     cards = []
     for i, true_types, pred_types, confidence, partial in sample:
         b64 = img_to_b64(test_paths[i])
@@ -227,7 +228,7 @@ def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30, n_test=None
         <div style="display:inline-block;margin:8px;text-align:center;
                     border:2px solid {border};border-radius:8px;padding:6px;background:#1a1a1a">
           <img src="data:image/png;base64,{b64}" width="96" height="96"
-               style="image-rendering:pixelated"/><br>
+               style="{img_style}"/><br>
           <span style="color:#4af;font-size:12px">True: {true_str}</span><br>
           <span style="color:#f66;font-size:12px">Pred: {pred_str}</span><br>
           <span style="color:{tag_color};font-size:11px">{tag} | Conf: {confidence:.2%}</span>
@@ -242,14 +243,23 @@ def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30, n_test=None
     <div style="padding:12px">{"".join(cards)}</div>
     </body></html>"""
 
-    out = RESULTS_DIR / "mistakes_CNN.html"
+    suffix = "_grayscale" if is_grayscale else "_color"
+    out = RESULTS_DIR / f"mistakes{suffix}_CNN.html"
     out.write_text(html, encoding="utf-8")
     print(f"Saved: {out}")
 
 
 def main():
-    if not CHECKPOINT_PATH.exists():
-        print(f"No checkpoint found at {CHECKPOINT_PATH}. Run train.py first.")
+    checkpoint_dir = Path(__file__).parent / "checkpoints"
+    checkpoint_path = checkpoint_dir / "best.pt"
+    if not checkpoint_path.exists():
+        if (checkpoint_dir / "best_color.pt").exists():
+            checkpoint_path = checkpoint_dir / "best_color.pt"
+        elif (checkpoint_dir / "best_grayscale.pt").exists():
+            checkpoint_path = checkpoint_dir / "best_grayscale.pt"
+
+    if not checkpoint_path.exists():
+        print(f"No checkpoint found at {checkpoint_path} or best_color.pt/best_grayscale.pt. Run train.py/pipeline.py first.")
         sys.exit(1)
 
     if torch.cuda.is_available():
@@ -260,8 +270,8 @@ def main():
         device = torch.device("cpu")
     print(f"Device: {device}")
 
-    ckpt = torch.load(CHECKPOINT_PATH, map_location=device)
-    print(f"Loaded checkpoint from epoch {ckpt['epoch']} (val F1: {ckpt['val_f1']:.4f})")
+    ckpt = torch.load(checkpoint_path, map_location=device)
+    print(f"Loaded checkpoint {checkpoint_path.name} from epoch {ckpt['epoch']} (val F1: {ckpt['val_f1']:.4f})")
 
     #model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
     model = build_model(num_classes=len(TYPES)).to(device)
@@ -285,12 +295,14 @@ def main():
     print_per_gen_metrics(y_true, y_pred, test_paths)
 
     RESULTS_DIR.mkdir(exist_ok=True)
-    np.save(RESULTS_DIR / "y_true.npy", y_true)
-    np.save(RESULTS_DIR / "y_pred.npy", y_pred)
-    np.save(RESULTS_DIR / "y_probs.npy", y_probs)
+    is_grayscale = ckpt.get("args", {}).get("grayscale", False)
+    suffix = "_grayscale" if is_grayscale else "_color"
+    np.save(RESULTS_DIR / f"y_true{suffix}.npy", y_true)
+    np.save(RESULTS_DIR / f"y_pred{suffix}.npy", y_pred)
+    np.save(RESULTS_DIR / f"y_probs{suffix}.npy", y_probs)
 
     print("\nGenerating mistake gallery...")
-    save_mistake_examples(y_true, y_pred, y_probs, test_paths, n_test=len(test_idx))
+    save_mistake_examples(y_true, y_pred, y_probs, test_paths, n_test=len(test_idx), is_grayscale=is_grayscale)
     print(f"\nResults saved to {RESULTS_DIR}/")
     generate_report.main()
 

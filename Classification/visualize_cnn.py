@@ -20,7 +20,7 @@ import matplotlib
 classification_dir = Path(__file__).parent.resolve()
 sys.path.insert(0, str(classification_dir))
 
-from dataset import PokemonSpriteDataset, DEFAULT_TRANSFORM, TYPES, gen_stratified_split, rgba_to_rgb
+from dataset import PokemonSpriteDataset, DEFAULT_TRANSFORM, GRAYSCALE_DEFAULT_TRANSFORM, TYPES, gen_stratified_split, rgba_to_rgb
 from cnn_model import build_model
 
 activations = {}
@@ -93,10 +93,27 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Generate activation dashboards for N samples.")
     parser.add_argument("-n", "--n-samples", type=int, default=5, help="Number of samples to visualize")
+    parser.add_argument(
+        "--grayscale",
+        action="store_true",
+        help="Convert the dataset to grayscale and load the grayscale model"
+    )
     args = parser.parse_args()
 
-    checkpoint_path = classification_dir / "checkpoints" / "best.pt"
-    if not checkpoint_path.exists():
+    checkpoint_dir = classification_dir / "checkpoints"
+    checkpoint_path = None
+    if args.grayscale:
+        checkpoint_path = checkpoint_dir / "best_grayscale.pt"
+        if not checkpoint_path.exists():
+            checkpoint_path = checkpoint_dir / "best.pt"
+    else:
+        for name in ["best_color.pt", "best.pt", "best_grayscale.pt"]:
+            p = checkpoint_dir / name
+            if p.exists():
+                checkpoint_path = p
+                break
+
+    if not checkpoint_path or not checkpoint_path.exists():
         print(f"Error: No checkpoint found at {checkpoint_path}. Train the model first.")
         return
 
@@ -109,17 +126,22 @@ def main():
     model.load_state_dict(ckpt["model_state"])
     model.eval()
 
+    is_grayscale = args.grayscale or ckpt.get("args", {}).get("grayscale", False)
+    suffix = "grayscale" if is_grayscale else "color"
+    print(f"Loaded checkpoint {checkpoint_path.name} (grayscale mode: {is_grayscale})")
+
     model.features[4].register_forward_hook(get_activation('Middle (Textures/Patterns)'))
     model.features[8].register_forward_hook(get_activation('Final (High-Level Concepts)'))
 
     # 2. Get random image & run forward pass
-    dataset = PokemonSpriteDataset(transform=DEFAULT_TRANSFORM)
+    active_transform = GRAYSCALE_DEFAULT_TRANSFORM if is_grayscale else DEFAULT_TRANSFORM
+    dataset = PokemonSpriteDataset(transform=active_transform)
     _, _, test_idx = gen_stratified_split(dataset.index)
     
     n_samples = min(args.n_samples, len(test_idx))
     chosen_samples = random.sample(test_idx, n_samples)
     
-    save_dir = classification_dir / "results" / "activation_dashboards"
+    save_dir = classification_dir / "results" / f"activation_dashboards_{suffix}"
     save_dir.mkdir(parents=True, exist_ok=True)
     print(f"Generating {n_samples} dashboards in {save_dir}...\n")
 
@@ -131,7 +153,9 @@ def main():
         print(f"[{count}/{n_samples}] Processing Pokemon {pokemon_folder} ({img_path.name})...")
         
         raw_img = rgba_to_rgb(Image.open(img_path).convert("RGBA"))
-        tensor_img = DEFAULT_TRANSFORM(raw_img).unsqueeze(0).to(device)
+        if is_grayscale:
+            raw_img = raw_img.convert("L").convert("RGB")
+        tensor_img = active_transform(raw_img).unsqueeze(0).to(device)
 
         with torch.no_grad():
             logits = model(tensor_img)
@@ -155,13 +179,13 @@ def main():
         maps_to_show = 8
         
         # 3. Prepare Image Data for HTML
-        # Input colored splits
-        r, g, b = raw_img.split()
-        z = Image.new("L", r.size, 0)
         img_b64_orig = img_to_b64(raw_img)
-        img_b64_r = img_to_b64(Image.merge("RGB", (r, z, z)))
-        img_b64_g = img_to_b64(Image.merge("RGB", (z, g, z)))
-        img_b64_b = img_to_b64(Image.merge("RGB", (z, z, b)))
+        if not is_grayscale:
+            r, g, b = raw_img.split()
+            z = Image.new("L", r.size, 0)
+            img_b64_r = img_to_b64(Image.merge("RGB", (r, z, z)))
+            img_b64_g = img_to_b64(Image.merge("RGB", (z, g, z)))
+            img_b64_b = img_to_b64(Image.merge("RGB", (z, z, b)))
 
         # HTML Generation
         html = [f"""<!DOCTYPE html>
@@ -270,7 +294,7 @@ def main():
                 
                 .input-grid {{
                     display: grid;
-                    grid-template-columns: repeat(4, 200px);
+                    grid-template-columns: repeat({"1" if is_grayscale else "4"}, 200px);
                     gap: 20px;
                     justify-content: center;
                     margin-bottom: 40px;
@@ -296,23 +320,45 @@ def main():
                 <a href="index.html">&larr; Back to Index</a>
             </div>
         </div>
-
-        <!-- Inputs Section -->
-        <div class="section-title">Network Input (Split Channels)</div>
-        <div class="input-grid">
-            <div class="card"><div class="card-title">Original RGB</div><img src="data:image/png;base64,{img_b64_orig}"></div>
-            <div class="card"><div class="card-title">Red Channel Input</div><img src="data:image/png;base64,{img_b64_r}"></div>
-            <div class="card"><div class="card-title">Green Channel Input</div><img src="data:image/png;base64,{img_b64_g}"></div>
-            <div class="card"><div class="card-title">Blue Channel Input</div><img src="data:image/png;base64,{img_b64_b}"></div>
-        </div>
-        
-        <div class="section-title">Layer 1: Color Basis Convolutions</div>
-        <p style="color:#94a3b8; font-size:0.95em; max-width:800px; margin-bottom: 20px;">
-            Visualizing the exact linear algebra of the first layer. The filters (weights) are 3x3x3 matrices. 
-            We separate the 2D cross-correlation for each color channel, then composite them into an RGB image. 
-            <span style="color:#f472b6;">For the individual channel rows: Red = Positive firing, Blue = Negative firing.</span>
-        </p>
         """]
+
+        # Inputs Section
+        if is_grayscale:
+            html.append(f"""
+            <div class="section-title">Network Input (Grayscale)</div>
+            <div class="input-grid">
+                <div class="card"><div class="card-title">Grayscale Input</div><img src="data:image/png;base64,{img_b64_orig}"></div>
+            </div>
+            """)
+        else:
+            html.append(f"""
+            <div class="section-title">Network Input (Split Channels)</div>
+            <div class="input-grid">
+                <div class="card"><div class="card-title">Original RGB</div><img src="data:image/png;base64,{img_b64_orig}"></div>
+                <div class="card"><div class="card-title">Red Channel Input</div><img src="data:image/png;base64,{img_b64_r}"></div>
+                <div class="card"><div class="card-title">Green Channel Input</div><img src="data:image/png;base64,{img_b64_g}"></div>
+                <div class="card"><div class="card-title">Blue Channel Input</div><img src="data:image/png;base64,{img_b64_b}"></div>
+            </div>
+            """)
+
+        # Explanation
+        if is_grayscale:
+            html.append("""
+            <div class="section-title">Layer 1: Convolutions</div>
+            <p style="color:#94a3b8; font-size:0.95em; max-width:800px; margin-bottom: 20px;">
+                Visualizing the first layer filters and the resulting output signal. The filters (weights) are 3x3x3 matrices.
+                Since the input is grayscale, the color channels are identical. We show the combined activation signal response below.
+            </p>
+            """)
+        else:
+            html.append("""
+            <div class="section-title">Layer 1: Color Basis Convolutions</div>
+            <p style="color:#94a3b8; font-size:0.95em; max-width:800px; margin-bottom: 20px;">
+                Visualizing the exact linear algebra of the first layer. The filters (weights) are 3x3x3 matrices. 
+                We separate the 2D cross-correlation for each color channel, then composite them into an RGB image. 
+                <span style="color:#f472b6;">For the individual channel rows: Red = Positive firing, Blue = Negative firing.</span>
+            </p>
+            """)
         
         W_np = W.cpu().numpy()
         
@@ -325,46 +371,62 @@ def main():
             html.append(f'<div class="card"><div class="card-title">Filter {map_idx}</div><div class="img-wrapper"><img src="data:image/png;base64,{b64}"></div></div>')
         html.append('</div>')
 
-        # 2. Decomposed Convolutions Rows (Coolwarm)
-        rows = [
-            (out_r, 'Red Convolution', 'X_R ★ W_R'),
-            (out_g, 'Green Convolution', 'X_G ★ W_G'),
-            (out_b, 'Blue Convolution', 'X_B ★ W_B')
-        ]
-        
-        for out_data, label, math_lbl in rows:
-            html.append(f'<div class="grid-container"><div class="row-label">{label}<span class="math-text">{math_lbl}</span></div>')
-            for map_idx in range(maps_to_show):
-                # Find max magnitude across all 3 components for THIS filter to keep the color scale mathematically sound
-                c_max = max(
-                    np.abs(out_r[map_idx]).max(), 
-                    np.abs(out_g[map_idx]).max(), 
-                    np.abs(out_b[map_idx]).max()
-                )
-                b64 = array_to_b64(out_data[map_idx], cmap_name='coolwarm', vmin=-c_max, vmax=c_max)
-                html.append(f'<div class="card"><div class="card-title">Ch {map_idx}</div><div class="img-wrapper"><img src="data:image/png;base64,{b64}"></div></div>')
-            html.append('</div>')
+        # 2. Decomposed Convolutions Rows (Coolwarm) - Omitted in grayscale
+        if not is_grayscale:
+            rows = [
+                (out_r, 'Red Convolution', 'X_R ★ W_R'),
+                (out_g, 'Green Convolution', 'X_G ★ W_G'),
+                (out_b, 'Blue Convolution', 'X_B ★ W_B')
+            ]
+            
+            for out_data, label, math_lbl in rows:
+                html.append(f'<div class="grid-container"><div class="row-label">{label}<span class="math-text">{math_lbl}</span></div>')
+                for map_idx in range(maps_to_show):
+                    # Find max magnitude across all 3 components for THIS filter to keep the color scale mathematically sound
+                    c_max = max(
+                        np.abs(out_r[map_idx]).max(), 
+                        np.abs(out_g[map_idx]).max(), 
+                        np.abs(out_b[map_idx]).max()
+                    )
+                    b64 = array_to_b64(out_data[map_idx], cmap_name='coolwarm', vmin=-c_max, vmax=c_max)
+                    html.append(f'<div class="card"><div class="card-title">Ch {map_idx}</div><div class="img-wrapper"><img src="data:image/png;base64,{b64}"></div></div>')
+                html.append('</div>')
 
-        # 2.5. RGB Composite Row (False Color Signal Strength)
-        html.append('<div class="grid-container"><div class="row-label">RGB Signal Composite<span class="math-text">RGB = max(0, X_C ★ W_C)</span></div>')
+        # 2.5. Composite Row
+        if is_grayscale:
+            html.append('<div class="grid-container"><div class="row-label">Signal Composite<span class="math-text">Composite = max(0, ∑ X_C ★ W_C)</span></div>')
+        else:
+            html.append('<div class="grid-container"><div class="row-label">RGB Signal Composite<span class="math-text">RGB = max(0, X_C ★ W_C)</span></div>')
+            
         for map_idx in range(maps_to_show):
             r_sig = out_r[map_idx]
             g_sig = out_g[map_idx]
             b_sig = out_b[map_idx]
             
-            # Stack into [H, W, 3] and apply ReLU (clip negatives to 0)
-            # We only want to plot positive signal contributions as color brightness.
-            rgb_stack = np.stack([r_sig, g_sig, b_sig], axis=-1)
-            rgb_stack = np.clip(rgb_stack, 0, None)
-            
-            # Normalize to [0, 1] based on the max signal across all 3 channels
-            s_max = rgb_stack.max()
-            if s_max > 0:
-                rgb_norm = rgb_stack / s_max
+            if is_grayscale:
+                # Sum the signal from the 3 identical grayscale input channels
+                sig = r_sig + g_sig + b_sig
+                sig = np.clip(sig, 0, None)
+                s_max = sig.max()
+                if s_max > 0:
+                    sig_norm = sig / s_max
+                else:
+                    sig_norm = sig
+                img = Image.fromarray((sig_norm * 255).astype(np.uint8))
             else:
-                rgb_norm = rgb_stack
+                # Stack into [H, W, 3] and apply ReLU (clip negatives to 0)
+                # We only want to plot positive signal contributions as color brightness.
+                rgb_stack = np.stack([r_sig, g_sig, b_sig], axis=-1)
+                rgb_stack = np.clip(rgb_stack, 0, None)
                 
-            img = Image.fromarray((rgb_norm * 255).astype(np.uint8))
+                # Normalize to [0, 1] based on the max signal across all 3 channels
+                s_max = rgb_stack.max()
+                if s_max > 0:
+                    rgb_norm = rgb_stack / s_max
+                else:
+                    rgb_norm = rgb_stack
+                img = Image.fromarray((rgb_norm * 255).astype(np.uint8))
+                
             buf = io.BytesIO()
             img.save(buf, format="PNG")
             b64 = base64.b64encode(buf.getvalue()).decode()

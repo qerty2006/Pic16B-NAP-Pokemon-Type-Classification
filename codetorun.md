@@ -1,4 +1,6 @@
 HOW TO SET UP FILES FOR THE PROJECT, replace /Users/nt/miniconda3/bin/python with /Users/nt/miniconda3/bin/python or the python interpreter you are using
+YOU NEED TO RUNN THESE COMMAND FROM THE ROOT FOLDER OF THE PROJECT
+
 
 "Acquisition"
 ./Data-Acquisition/setup_pokerogue_assets.sh      

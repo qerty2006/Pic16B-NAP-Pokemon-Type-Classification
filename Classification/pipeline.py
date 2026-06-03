@@ -215,7 +215,14 @@ def collect_predictions_pipeline(model, loader, device):
 def main():
     args = parse_args()
     results_dir, checkpoint_dir = setup_directories(args)
-    checkpoint_path = checkpoint_dir / args.checkpoint_name
+    
+    # Consistent suffix naming for files
+    suffix = "_grayscale" if args.grayscale else "_color"
+    
+    checkpoint_name = args.checkpoint_name
+    if checkpoint_name == "best.pt":
+        checkpoint_name = f"best{suffix}.pt"
+    checkpoint_path = checkpoint_dir / checkpoint_name
     
     # Automatically select best hardware accelerator
     if torch.cuda.is_available():
@@ -238,9 +245,9 @@ def main():
         "val_indices": val_idx,
         "test_indices": test_idx
     }
-    with open(results_dir / "split_config.json", "w") as f:
+    with open(results_dir / f"split_config{suffix}.json", "w") as f:
         json.dump(split_info, f)
-    print(f"Saved split configuration metadata to: {results_dir / 'split_config.json'}")
+    print(f"Saved split configuration metadata to: {results_dir / f'split_config{suffix}.json'}")
     
     if args.mode == "prepare":
         print("Dataset preparation complete. Exiting as requested.")
@@ -275,7 +282,7 @@ def main():
         criterion = nn.BCEWithLogitsLoss()
         
         best_f1, best_epoch = 0.0, 0
-        csv_path = results_dir / "training_log.csv"
+        csv_path = results_dir / f"training_log{suffix}.csv"
         csv_fields = ["epoch", "phase", "loss", "accuracy", "f1", "precision", "recall"]
         with open(csv_path, "w", newline="") as f:
             csv.DictWriter(f, fieldnames=csv_fields).writeheader()
@@ -338,10 +345,10 @@ def main():
         y_true, y_pred, y_probs = collect_predictions_pipeline(model, test_loader, device)
         
         # Save validation results locally in results dir
-        np.save(results_dir / "y_true.npy", y_true)
-        np.save(results_dir / "y_pred.npy", y_pred)
-        np.save(results_dir / "y_probs.npy", y_probs)
-        print(f"Saved y_true.npy, y_pred.npy, and y_probs.npy to {results_dir}")
+        np.save(results_dir / f"y_true{suffix}.npy", y_true)
+        np.save(results_dir / f"y_pred{suffix}.npy", y_pred)
+        np.save(results_dir / f"y_probs{suffix}.npy", y_probs)
+        print(f"Saved y_true{suffix}.npy, y_pred{suffix}.npy, and y_probs{suffix}.npy to {results_dir}")
         
         print_summary(y_true, y_pred, y_probs)
         
@@ -351,9 +358,9 @@ def main():
     # 4. Visualization
     if args.mode in ["all", "visualize"]:
         print("\n--- [Step 4/4] Generating Visualizations ---")
-        y_true_path = results_dir / "y_true.npy"
-        y_pred_path = results_dir / "y_pred.npy"
-        y_probs_path = results_dir / "y_probs.npy"
+        y_true_path = results_dir / f"y_true{suffix}.npy"
+        y_pred_path = results_dir / f"y_pred{suffix}.npy"
+        y_probs_path = results_dir / f"y_probs{suffix}.npy"
         
         if not (y_true_path.exists() and y_pred_path.exists() and y_probs_path.exists()):
             print("Error: Evaluation outputs (npy files) not found. Run evaluation first.")
