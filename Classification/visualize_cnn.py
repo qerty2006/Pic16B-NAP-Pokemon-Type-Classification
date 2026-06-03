@@ -21,7 +21,7 @@ classification_dir = Path(__file__).parent.resolve()
 sys.path.insert(0, str(classification_dir))
 
 from dataset import PokemonSpriteDataset, DEFAULT_TRANSFORM, GRAYSCALE_DEFAULT_TRANSFORM, TYPES, gen_stratified_split, rgba_to_rgb
-from cnn_model import build_model
+from cnn_model import build_model, build_scratch_model
 
 activations = {}
 
@@ -98,40 +98,66 @@ def main():
         action="store_true",
         help="Convert the dataset to grayscale and load the grayscale model"
     )
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="efficientnet",
+        choices=["efficientnet", "scratch"],
+        help="Model architecture: 'efficientnet' (default) or 'scratch'"
+    )
     args = parser.parse_args()
 
     checkpoint_dir = classification_dir / "checkpoints"
     checkpoint_path = None
+    
+    # Smarter checkpoint searching prioritizing selected model type
+    names_to_try = []
     if args.grayscale:
-        checkpoint_path = checkpoint_dir / "best_grayscale.pt"
-        if not checkpoint_path.exists():
-            checkpoint_path = checkpoint_dir / "best.pt"
+        names_to_try.append(f"best_{args.model_type}_grayscale.pt")
+        names_to_try.append("best_grayscale.pt")
+        names_to_try.append("best.pt")
     else:
-        for name in ["best_color.pt", "best.pt", "best_grayscale.pt"]:
-            p = checkpoint_dir / name
-            if p.exists():
-                checkpoint_path = p
-                break
+        names_to_try.append(f"best_{args.model_type}_color.pt")
+        names_to_try.append(f"best_{args.model_type}_grayscale.pt")
+        names_to_try.append("best_color.pt")
+        names_to_try.append("best.pt")
+        names_to_try.append("best_grayscale.pt")
+
+    for name in names_to_try:
+        p = checkpoint_dir / name
+        if p.exists():
+            checkpoint_path = p
+            break
 
     if not checkpoint_path or not checkpoint_path.exists():
-        print(f"Error: No checkpoint found at {checkpoint_path}. Train the model first.")
+        print(f"Error: No checkpoint found. Train the model first.")
         return
 
     device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     print(f"Using device: {device}")
 
     # 1. Load Model & Register Hooks
-    model = build_model(num_classes=len(TYPES)).to(device)
     ckpt = torch.load(checkpoint_path, map_location=device)
+    model_type = ckpt.get("args", {}).get("model_type", args.model_type)
+    
+    if model_type == "scratch":
+        model = build_scratch_model(num_classes=len(TYPES)).to(device)
+    else:
+        model = build_model(num_classes=len(TYPES)).to(device)
+        
     model.load_state_dict(ckpt["model_state"])
     model.eval()
 
     is_grayscale = args.grayscale or ckpt.get("args", {}).get("grayscale", False)
-    suffix = "grayscale" if is_grayscale else "color"
-    print(f"Loaded checkpoint {checkpoint_path.name} (grayscale mode: {is_grayscale})")
+    suffix = f"{model_type}_grayscale" if is_grayscale else f"{model_type}_color"
+    print(f"Loaded checkpoint {checkpoint_path.name} (model type: {model_type}, grayscale mode: {is_grayscale})")
 
-    model.features[4].register_forward_hook(get_activation('Middle (Textures/Patterns)'))
-    model.features[8].register_forward_hook(get_activation('Final (High-Level Concepts)'))
+    if model_type == "scratch":
+        model.features[6].register_forward_hook(get_activation('Middle (Textures/Patterns)'))
+        model.features[14].register_forward_hook(get_activation('Final (High-Level Concepts)'))
+    else:
+        model.features[4].register_forward_hook(get_activation('Middle (Textures/Patterns)'))
+        model.features[8].register_forward_hook(get_activation('Final (High-Level Concepts)'))
 
     # 2. Get random image & run forward pass
     active_transform = GRAYSCALE_DEFAULT_TRANSFORM if is_grayscale else DEFAULT_TRANSFORM
@@ -162,7 +188,7 @@ def main():
             probs = torch.sigmoid(logits)[0].cpu().numpy()
             
             # Decomposed Convolutions
-            conv1 = model.features[0][0]
+            conv1 = model.features[0] if model_type == "scratch" else model.features[0][0]
             W = conv1.weight.detach()
             stride, padding = conv1.stride, conv1.padding
             

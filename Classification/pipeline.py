@@ -38,7 +38,7 @@ from dataset import (
     parse_folder_id,
     get_generation
 )
-from cnn_model import build_model
+from cnn_model import build_model, build_scratch_model
 from train import make_weighted_sampler, run_epoch2, log
 from evaluate import print_summary, print_per_gen_metrics, img_to_b64
 from Visualizer import save_all_mistake_examples_with_probs
@@ -132,6 +132,13 @@ def parse_args():
         action="store_true",
         help="Convert the dataset to grayscale before passing it to the model"
     )
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="efficientnet",
+        choices=["efficientnet", "scratch"],
+        help="Model architecture: 'efficientnet' (default) or 'scratch'"
+    )
     
     # File paths and Hotswappability options
     parser.add_argument(
@@ -216,8 +223,8 @@ def main():
     args = parse_args()
     results_dir, checkpoint_dir = setup_directories(args)
     
-    # Consistent suffix naming for files
-    suffix = "_grayscale" if args.grayscale else "_color"
+    # Consistent suffix naming for files including model type
+    suffix = f"_{args.model_type}_grayscale" if args.grayscale else f"_{args.model_type}_color"
     
     checkpoint_name = args.checkpoint_name
     if checkpoint_name == "best.pt":
@@ -273,7 +280,10 @@ def main():
             num_workers=0
         )
         
-        model = build_model(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
+        if args.model_type == "scratch":
+            model = build_scratch_model(num_classes=len(TYPES)).to(device)
+        else:
+            model = build_model(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
         optimizer = torch.optim.AdamW(
             filter(lambda p: p.requires_grad, model.parameters()), 
             lr=args.lr, 
@@ -316,10 +326,10 @@ def main():
                 print(f"  ✓ Saved best checkpoint (val F1 {best_f1:.4f}) to: {checkpoint_path}")
                 
         print(f"Training completed! Best val F1: {best_f1:.4f} at epoch {best_epoch}.")
-
+ 
     if args.mode == "train":
         return
-
+ 
     # 3. Evaluation
     if args.mode in ["all", "evaluate"]:
         print("\n--- [Step 3/4] Evaluating Model ---")
@@ -329,7 +339,11 @@ def main():
             
         print(f"Loading best checkpoint from: {checkpoint_path}")
         ckpt = torch.load(checkpoint_path, map_location=device)
-        model = build_model(num_classes=len(TYPES)).to(device)
+        model_type = ckpt.get("args", {}).get("model_type", args.model_type)
+        if model_type == "scratch":
+            model = build_scratch_model(num_classes=len(TYPES)).to(device)
+        else:
+            model = build_model(num_classes=len(TYPES)).to(device)
         model.load_state_dict(ckpt["model_state"])
         
         # Ensure we use the correct transform for evaluation

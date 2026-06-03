@@ -15,9 +15,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 from dataset import gen_stratified_split
 from ViT import build_vit_b16
 from dataset import PokemonSpriteDataset, TYPES, gen_gen_split, TRAIN_TRANSFORM, DEFAULT_TRANSFORM
-from cnn_model import build_model
+from cnn_model import build_model, build_scratch_model
 
 CHECKPOINT_DIR = Path(__file__).parent / "checkpoints"
+
 
 
 def make_weighted_sampler(dataset, train_idx):
@@ -165,7 +166,9 @@ def main():
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--freeze-backbone", action="store_true",
-                        help="Only train the classifier head")
+                        help="Only train the classifier head (for pretrained models like efficientnet)")
+    parser.add_argument("--model-type", type=str, choices=["efficientnet", "scratch"], default="efficientnet",
+                        help="Model architecture: 'efficientnet' or 'scratch'")
     args = parser.parse_args()
 
     if torch.cuda.is_available():
@@ -216,8 +219,10 @@ def main():
      # ==== CAN REDUCE ====
 
 
-    #model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
-    model = build_model(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
+    if args.model_type == "scratch":
+        model = build_scratch_model(num_classes=len(TYPES)).to(device)
+    else:
+        model = build_model(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-2
     )

@@ -367,7 +367,6 @@ if __name__ == "__main__":
     print(f"\nTotal variant/form folders successfully loaded: {found_variants}")
     # ====================================================================
 
-    # Keep your original code below this line...
     print("\nCounting type distribution...")
 
     print("\nCounting type distribution...")
