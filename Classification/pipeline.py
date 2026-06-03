@@ -74,7 +74,7 @@ def parse_args():
     parser.add_argument(
         "--test-frac", 
         type=float, 
-        default=0.15, 
+        default=0.25, 
         help="Fraction of test samples for stratified split (default: 0.15)"
     )
     parser.add_argument(
