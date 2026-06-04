@@ -18,6 +18,7 @@ def build_vit_b16(num_classes: int, freeze_backbone: bool = True) -> nn.Module:
             param.requires_grad = False
 
     # In ViT, the final classification head is a linear layer stored in model.heads.head
+    assert isinstance(model.heads.head, nn.Linear)
     in_features = model.heads.head.in_features
     model.heads.head = nn.Linear(in_features, num_classes)
 

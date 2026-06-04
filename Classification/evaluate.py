@@ -141,9 +141,9 @@ def print_summary(y_true, y_pred, y_probs):
     print(f"  At Least 1 Right: {naive_at_least_one:.2%}")
     print(f"  2 Types Right:    {naive_two_right:.2%}")
 
-    f1_per   = f1_score(y_true, y_pred, average=None, zero_division=0, labels=list(range(len(TYPES))))
-    prec_per = precision_score(y_true, y_pred, average=None, zero_division=0, labels=list(range(len(TYPES))))
-    rec_per  = recall_score(y_true, y_pred, average=None, zero_division=0, labels=list(range(len(TYPES))))
+    f1_per   = np.array(f1_score(y_true, y_pred, average=None, zero_division=0, labels=list(range(len(TYPES)))))
+    prec_per = np.array(precision_score(y_true, y_pred, average=None, zero_division=0, labels=list(range(len(TYPES)))))
+    rec_per  = np.array(recall_score(y_true, y_pred, average=None, zero_division=0, labels=list(range(len(TYPES)))))
 
     print("\n=== Per-Type Metrics ===")
     print(f"  {'Type':<12} {'F1':>6} {'Prec':>6} {'Rec':>6}")

@@ -11,10 +11,12 @@ from pathlib import Path
 import random
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from PIL import Image
 import matplotlib
+from typing import cast
 
 # Ensure local classification directory is in python path
 classification_dir = Path(__file__).parent.resolve()
@@ -71,8 +73,7 @@ def overlay_activation_on_image(act_map, orig_img):
     # Using BILINEAR interpolation to smoothly stretch the low-res matrix
     act_img = Image.fromarray((act_norm * 255).astype(np.uint8))
     
-    # Use Image.Resampling.BILINEAR for modern PIL, or Image.BILINEAR for older versions
-    resample_mode = getattr(Image, 'Resampling', Image).BILINEAR
+    resample_mode = Image.Resampling.BILINEAR
     act_resized = act_img.resize(orig_img.size, resample_mode)
     
     # Convert both to float arrays in [0, 1]
@@ -152,12 +153,13 @@ def main():
     suffix = f"{model_type}_grayscale" if is_grayscale else f"{model_type}_color"
     print(f"Loaded checkpoint {checkpoint_path.name} (model type: {model_type}, grayscale mode: {is_grayscale})")
 
+    features_seq = cast(nn.Sequential, model.features)
     if model_type == "scratch":
-        model.features[6].register_forward_hook(get_activation('Middle (Textures/Patterns)'))
-        model.features[14].register_forward_hook(get_activation('Final (High-Level Concepts)'))
+        features_seq[6].register_forward_hook(get_activation('Middle (Textures/Patterns)'))
+        features_seq[14].register_forward_hook(get_activation('Final (High-Level Concepts)'))
     else:
-        model.features[4].register_forward_hook(get_activation('Middle (Textures/Patterns)'))
-        model.features[8].register_forward_hook(get_activation('Final (High-Level Concepts)'))
+        features_seq[4].register_forward_hook(get_activation('Middle (Textures/Patterns)'))
+        features_seq[8].register_forward_hook(get_activation('Final (High-Level Concepts)'))
 
     # 2. Get random image & run forward pass
     active_transform = GRAYSCALE_DEFAULT_TRANSFORM if is_grayscale else DEFAULT_TRANSFORM
@@ -181,23 +183,27 @@ def main():
         raw_img = rgba_to_rgb(Image.open(img_path).convert("RGBA"))
         if is_grayscale:
             raw_img = raw_img.convert("L").convert("RGB")
-        tensor_img = active_transform(raw_img).unsqueeze(0).to(device)
+        tensor_img = cast(torch.Tensor, active_transform(raw_img)).unsqueeze(0).to(device)
 
         with torch.no_grad():
             logits = model(tensor_img)
             probs = torch.sigmoid(logits)[0].cpu().numpy()
             
             # Decomposed Convolutions
-            conv1 = model.features[0] if model_type == "scratch" else model.features[0][0]
+            features_seq = cast(nn.Sequential, model.features)
+            conv1_module = features_seq[0] if model_type == "scratch" else cast(nn.Sequential, features_seq[0])[0]
+            conv1 = cast(nn.Conv2d, conv1_module)
             W = conv1.weight.detach()
             stride, padding = conv1.stride, conv1.padding
             
             X_r, X_g, X_b = tensor_img[:, 0:1], tensor_img[:, 1:2], tensor_img[:, 2:3]
             W_r, W_g, W_b = W[:, 0:1], W[:, 1:2], W[:, 2:3]
             
-            out_r = F.conv2d(X_r, W_r, stride=stride, padding=padding)[0].cpu().numpy()
-            out_g = F.conv2d(X_g, W_g, stride=stride, padding=padding)[0].cpu().numpy()
-            out_b = F.conv2d(X_b, W_b, stride=stride, padding=padding)[0].cpu().numpy()
+            s = tuple(stride)
+            p = tuple(padding)
+            out_r = F.conv2d(X_r, W_r, stride=s, padding=p)[0].cpu().numpy()
+            out_g = F.conv2d(X_g, W_g, stride=s, padding=p)[0].cpu().numpy()
+            out_b = F.conv2d(X_b, W_b, stride=s, padding=p)[0].cpu().numpy()
         
         true_types = [TYPES[j] for j, val in enumerate(raw_label) if val == 1.0]
         pred_types = [(TYPES[i], f'{probs[i]:.1%}') for i in np.argsort(probs)[::-1][:3]]
@@ -206,6 +212,7 @@ def main():
         
         # 3. Prepare Image Data for HTML
         img_b64_orig = img_to_b64(raw_img)
+        img_b64_r = img_b64_g = img_b64_b = ""
         if not is_grayscale:
             r, g, b = raw_img.split()
             z = Image.new("L", r.size, 0)

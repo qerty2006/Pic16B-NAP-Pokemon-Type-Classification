@@ -106,7 +106,7 @@ def get_generation(pokemon_id: int, folder_name: str = "") -> int:
     return 0
 
 
-def parse_folder_id(folder_name: str) -> int:
+def parse_folder_id(folder_name: str) -> int | None:
     """Helper to safely extract the base integer ID from folder names like '3-mega' or '12'."""
     base_part = folder_name.split("-")[0]
     return int(base_part) if base_part.isdigit() else None
