@@ -15,6 +15,7 @@ Classification/checkpoints/
 Classification/results/
 Classification/.index_cache.pkl
 backup-sprites/
+small_classif/
 
 # Python
 __pycache__/
