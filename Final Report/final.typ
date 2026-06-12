@@ -1,7 +1,7 @@
 #import "@local/jish:0.1.0": *
 
 #show: jish.with(
-  title: "PIC 16B Final Project Report: Pokemon Type Identification as a Multi-Label Classifcation Task",
+  title: "PIC 16B Final Project Report: Pokemon Type Identification as a Multi-Label Classification Task",
   authors: ((name: "Nishanth Tharakan",),(
     name: "Patrick Lerdsuwanrut",
   ), (
@@ -301,7 +301,7 @@ An important thing to consider here is that what we refer to as “Accuracy” i
   [Decision Tree], [18.44%], [12.93%], [14.77%], [12.45%],
   [Random Forest], [29.10%], [19.89%], [28.18%], [17.72%],
   [SVM], [31.15%], [19.63%], [24.43%], [18.56%],
-  [Grayscale CNN], [20.23%], [9.99%], [9.68%], [13.55%],
+  [Grayscale EfficientNet-B0 CNN], [20.23%], [9.99%], [9.68%], [13.55%],
   [Scratch CNN], [38.15%], [31.61%], [31.92%], [*35.85%*],
   [*EfficientNet-B0*], [*53%*], [*33.09%*], [*33.59%*], [35.09%]
 ), caption:"Performance Comparison of Model (Naive baseline is picking Mono-Water the whole time as it's the most frequent type)"
@@ -505,7 +505,7 @@ Overall, our models seemed to perform relatively well given how hard the task of
 
 This project displayed the importance of always being statistically rigorous when conducting reserach, specifically showcasing what can happen with a flawed dataset or a flawed pipeline. If we didn't repeat trials we may never have noticed the high variance between different splits, or the anomalously successful trial where the stars aligned for a very accurate model. Visualization also proved to be an important part of analysing results as without it we would have not realized Efficient-NetB0's biases towards greens and blues. 
 
-While Pokémon identification may not be a very useful task in the real world, other multi-label classifcation tasks, like injury detection from X-rays or content moderation online, are important for society to help the sick or maintain order in an online space. These practices, while techinically different tasks, all are united under the common feature of assigning multiple labels to one thing, which means these tasks can also face the same issues we ran into, like lack of data variety, or using a pretrained guide that comes with its own biases.
+While Pokémon identification may not be a very useful task in the real world, other multi-label classification tasks, like injury detection from X-rays or content moderation online, are important for society to help the sick or maintain order in an online space. These practices, while techinically different tasks, all are united under the common feature of assigning multiple labels to one thing, which means these tasks can also face the same issues we ran into, like lack of data variety, or using a pretrained guide that comes with its own biases.
 
 
 
