@@ -71,7 +71,7 @@ def collect_predictions2(model, loader, device, threshold=0.5):
                 # Find the indices that would sort the array from highest to lowest probability
                 sorted_idx = np.argsort(probs[i])[::-1]
 
-                # 1. Always lock in the absolute #1 highest guess (guarantees no "none" predictions)
+                # 1. Always lock in the absolute #1 highest guess 
                 preds[i, sorted_idx[0]] = 1
 
                 # 2. Check if the 2nd highest guess is within the gap threshold
