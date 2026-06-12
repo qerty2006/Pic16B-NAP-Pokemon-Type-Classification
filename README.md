@@ -121,6 +121,66 @@ Outputs:
 
 ---
 
+## Easy Run Guide
+
+Once all the data is extracted and set-up is complete, you can run "pipeline.py" to begin running the model. 
+"pipeline.py" essentially compiles all the important functions into one for easy use. While we still keep
+other files so we can work on it in the future, please just run pipeline.py as it has the most up-to-date
+and clean code.
+
+Below are some important parameters and factors you can switch around as you like to test the model in various
+ways:
+
+```bash
+ parser.add_argument(
+        "--split", 
+        type=str, 
+        default="stratified",
+        choices=["stratified", "generation"],
+        help="Type of split strategy to use: 'stratified' (default) or 'generation'"
+    )
+```
+By default, our pipeline code uses the "stratified" split which trains and tests on a train-test-split across
+all generations. For generation wise analysis switch to "generation" and augment the train and test gens
+in the following portion as you like.
+
+```bash
+    parser.add_argument(
+        "--train-gens", 
+        type=int, 
+        nargs="+", 
+        default=[4, 5, 6, 7, 8, 9],
+        help="Generations to train on for 'generation' split (default: 1 2 3)"
+    )
+    parser.add_argument(
+        "--test-gens", 
+        type=int, 
+        nargs="+", 
+        default=[1, 2],
+        help="Generations to test on for 'generation' split (default: 4 5 6)"
+    )
+```
+
+You can alter test and validation fractions in the sections given below: 
+
+```bash
+   parser.add_argument(
+        "--val-frac", 
+        type=float, 
+        default=0.15, 
+        help="Fraction of validation samples (default: 0.15)"
+    )
+    parser.add_argument(
+        "--test-frac", 
+        type=float, 
+        default=0.15, 
+        help="Fraction of test samples for stratified split (default: 0.15)"
+    )
+```
+
+
+
+
 ## Model Training
 
 Run from the project root in order. `dataset.py` is a shared module — do not run it directly.
