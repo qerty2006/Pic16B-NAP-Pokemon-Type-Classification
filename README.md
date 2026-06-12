@@ -217,3 +217,18 @@ All outputs saved to `Classification/results/`.
 | `baselines_metrics.json` | Raw baseline metrics (accuracy, F1, precision, recall) — read by `generate_report.py`. |
 | `mistakes_<Model>.html` | Gallery of misclassified sprites. Red border = fully wrong, orange = partial (1 of 2 types correct for dual-type Pokémon). CNN version sorted by confidence. |
 | `y_true.npy` / `y_pred.npy` / `y_probs.npy` | Ground truth (multi-hot), predictions (multi-hot), and sigmoid probabilities from CNN test set. |
+
+## Contributions Section:
+**Patrick:** 
+Developed the flat-feature classifiers (Decision Tree, Random Forest, SVM) and the initial EfficientNet-B0 pipeline; designed the weighted sampler and co-designed the inference gap threshold.
+
+**Nishanth:** 
+Data acquisition: wrote all scripts related to getting Pokerogue and PokeAPI data (Patrick modified them to allow multithreading)
+Suggested the EfficientNet-B0 model; implemented the Scratch CNN.
+
+**Ajmain:** 
+Created the code for splitting our source data into individual sprites and the original code to implement one-hot encoding for types. 
+Implemented and tested the ViT-B/16 architecture.
+Implemented the inference gap threshold.
+Selected and reported evaluation metrics. Tested with different hyperparameters, augmentations, sample sizes, and data segments.
+
