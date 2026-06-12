@@ -16,6 +16,8 @@ This project uses large data files that are not committed to the repo. You will 
 
 ## Quick Start
 
+First set the cd of the terminal to the home directory and then run. This is important!
+
 ```bash
 bash install_hooks.sh          # one-time setup — installs pre-push safety check
 pip install -r requirements.txt
@@ -132,8 +134,7 @@ Below are some important parameters and factors you can switch around as you lik
 ways. Note that you can either change it manually in each section or, our suggestion, run it on the command line
 with the relevant flag followed by the parameter value you want. For example:
 
-Also please remember to have your cd set to the folder within which pipeline.py is in for it to work.
-To make sure, copy the folder path and set cd to that folder path.
+Also please remember to have your cd set to the home directory!
 
 ```bash
 python pipeline.py --split "generation"
