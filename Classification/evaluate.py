@@ -93,7 +93,7 @@ def print_summary(y_true, y_pred, y_probs):
 
     Overall metrics: exact match accuracy, macro F1, precision, recall, ROC-AUC.
     Per-type metrics: F1, precision, recall for each of the 18 types individually.
-    ROC-AUC is computed on raw probabilities; all other metrics use top-k predictions.
+    ROC-AUC is computed on raw probabilities; all other metrics use the threshold/inference-gap predictions.
     """
     acc  = accuracy_score(y_true, y_pred)   # exact match across both types
     f1   = f1_score(y_true, y_pred, average="macro", zero_division=0)

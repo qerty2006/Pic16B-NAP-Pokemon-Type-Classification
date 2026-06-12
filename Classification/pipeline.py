@@ -77,7 +77,7 @@ def parse_args():
         "--test-frac", 
         type=float, 
         default=0.25, 
-        help="Fraction of test samples for stratified split (default: 0.15)"
+        help="Fraction of test samples for stratified split (default: 0.25)"
     )
     parser.add_argument(
         "--train-gens", 

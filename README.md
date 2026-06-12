@@ -115,8 +115,9 @@ python Data-Analysis/pokeapi_visualizers.py
 ```
 
 Outputs:
-- `generation_type_distribution.html` — 3D grid of type distributions per generation
-- `type_distribution_all.html` — 3D plot across all generations
+- `combined_generation_type_distribution.html` — Interactive 3D surface plot with dropdown selectors for each generation
+- `generation_type_combo_evolution.html` — Stacked bar chart showing type combination count evolution over generations
+- `top_20_type_combos_gen_0.html` — Horizontal bar chart of the top 20 most frequent type combinations
 
 ---
 
@@ -159,14 +160,14 @@ in the following portion as you like.
         "--train-gens", 
         type=int, 
         nargs="+", 
-        default=[4, 5, 6, 7, 8, 9],
+        default=[1, 2, 3],
         help="Generations to train on for 'generation' split (default: 1 2 3)"
     )
     parser.add_argument(
         "--test-gens", 
         type=int, 
         nargs="+", 
-        default=[1, 2],
+        default=[4, 5, 6],
         help="Generations to test on for 'generation' split (default: 4 5 6)"
     )
 ```
@@ -183,8 +184,8 @@ You can alter test and validation fractions in the sections given below:
     parser.add_argument(
         "--test-frac", 
         type=float, 
-        default=0.15, 
-        help="Fraction of test samples for stratified split (default: 0.15)"
+        default=0.25, 
+        help="Fraction of test samples for stratified split (default: 0.25)"
     )
 ```
 
@@ -267,10 +268,10 @@ What happens to a single Bulbasaur sprite from raw file to prediction:
    → Loss: BCEWithLogitsLoss(logits, multi-hot label) — 18 independent binary losses
    → Backprop updates weights
 
-4. Evaluation (evaluate.py)
+4. Evaluation (evaluate.py / pipeline.py)
    → sigmoid(logits) → probabilities [18]
-   → top-k: k=2 (Bulbasaur has 2 types), pick 2 highest probs
-   → Compare predicted [grass, poison] vs true [grass, poison] → correct
+   → Inference Gap Threshold: Always predict the highest probability type. If the difference between the 1st and 2nd highest probability is less than 0.25 (GAP_THRESHOLD), also predict the 2nd highest type as well.
+   → Compare predicted types vs true [grass, poison] → correct if both match exactly
 ```
 
 ---
@@ -279,41 +280,48 @@ What happens to a single Bulbasaur sprite from raw file to prediction:
 
 | Metric | What it means |
 |---|---|
-| **Accuracy** | % of predictions correct. Misleading with imbalanced classes — a model always predicting "Water" scores ~13% for free. |
-| **F1 (macro)** | Harmonic mean of precision and recall, averaged equally across all 18 types. Primary metric here — penalises ignoring rare types like Ice or Fairy. |
-| **Precision** | Of all times the model predicted a type, how often it was right. Low = too many false positives. |
-| **Recall** | Of all Pokémon of a given type, how many were correctly found. Low = model is missing that type. |
-| **ROC-AUC** | How well the model separates each type from all others. 0.5 = random, 1.0 = perfect. |
+| **Accuracy** | **Partial Match Accuracy** ("At Least 1 Right"). The percentage of Pokémon where the model predicts at least one of the true types correctly. This is the definition of accuracy used in our final report, as identifying even one correct type is highly valuable for dual-type Pokémon. |
+| **F1 (macro)** | Harmonic mean of precision and recall, calculated per-class and averaged equally across all 18 types. Our primary metric — penalizes ignoring rare types like Ice or Fairy. |
+| **Precision** | Macro-averaged precision. Of all times the model predicted a type, how often it was right. Low = too many false positives. |
+| **Recall** | Macro-averaged recall. Of all Pokémon of a given type, how many were correctly found. Low = model is missing that type. |
+| **ROC-AUC** | Macro-averaged Area Under the ROC Curve. Evaluates how well the model's raw probability scores separate each type from all others, independent of the decision threshold. 0.5 = random, 1.0 = perfect. |
 
 ---
 
+All outputs are saved to `Classification/results/` (and baseline outputs to `Patrick/results/` or `Classification/results/`).
+
 ## Output Files
 
-All outputs saved to `Classification/results/`.
-
-| File | Description |
+| File / Pattern | Description |
 |---|---|
 | `baselines_comparison.html` | Grouped bar chart comparing all three baseline models across all metrics. |
 | `baselines_confusion_matrices.html` | Side-by-side confusion matrix heatmaps for each baseline. Rows = true type, cols = predicted. |
 | `baselines_metrics.json` | Raw baseline metrics (accuracy, F1, precision, recall). |
-| `mistakes_<Model>.html` | Gallery of misclassified sprites. Red border = fully wrong, orange = partial (1 of 2 types correct for dual-type Pokémon). CNN version sorted by confidence. |
-| `y_true.npy` / `y_pred.npy` / `y_probs.npy` | Ground truth (multi-hot), predictions (multi-hot), and sigmoid probabilities from CNN test set. |
+| `mistakes_<Model>.html` | Gallery of misclassified sprites for baseline models. Red border = fully wrong, orange = partial. |
+| `mistakes_<color/grayscale>_gallery.html` | Detailed diagnostic HTML mistake gallery generated by `pipeline.py` (with model confidence breakdowns). |
+| `mistakes_<color/grayscale>_CNN.html` | Mistake gallery generated by `evaluate.py`. |
+| `training_log_<model_type>_<color/grayscale>.csv` | Epoch-by-epoch loss, accuracy, F1, precision, and recall metrics for both train and validation phases. |
+| `split_config_<model_type>_<color/grayscale>.json` | Train, validation, and test indices used for the run to ensure reproducibility. |
+| `y_true_<model_type>_<color/grayscale>.npy`<br>`y_pred_<model_type>_<color/grayscale>.npy`<br>`y_probs_<model_type>_<color/grayscale>.npy` | Ground truth (multi-hot), predictions (multi-hot), and sigmoid probabilities from the CNN test set. |
 
-## Contributions Section:
+## Member Contributions
+
+**Nishanth:** 
+- Data acquisition: wrote all scripts related to getting Pokerogue and PokeAPI data (Patrick modified them to allow multithreading).
+- Suggested the EfficientNet-B0 model; implemented the Scratch CNN; conducted grayscale analysis; implemented feature visualization.
+- Cowrote analysis with Ajmain, and wrote about the results of our project that note the importance of certain scientific practices.
+
+**Ajmain:** 
+- Created the code for splitting our source data into individual sprites and the original code to implement one-hot encoding for types. 
+- Implemented and tested the ViT-B/16 architecture.
+- Implemented the inference gap threshold.
+- Selected and reported evaluation metrics. Tested with different hyperparameters, augmentations, sample sizes, and data segments.
+- Cowrote analysis with Nishanth.
+
 **Patrick:** 
 Developed the flat-feature classifiers (Decision Tree, Random Forest, SVM) and the initial EfficientNet-B0 pipeline; designed the weighted sampler and co-designed the inference gap threshold.
 
-**Nishanth:** 
-Data acquisition: wrote all scripts related to getting Pokerogue and PokeAPI data (Patrick modified them to allow multithreading).
-Suggested the EfficientNet-B0 model; implemented the Scratch CNN; Conducted grey-scale analysis; implemented feature visualization.
-
-**Ajmain:** 
-Created the code for splitting our source data into individual sprites and the original code to implement one-hot encoding for types. 
-Implemented and tested the ViT-B/16 architecture.
-Implemented the inference gap threshold.
-Selected and reported evaluation metrics. Tested with different hyperparameters, augmentations, sample sizes, and data segments.
-
-## OUTDATED: Model Training (USE PIPELINE)
+## OUTDATED: Model Training (USE EASY RUN GUIDE ABOVE)
 
 **NOTE** The intructions here are outdated and simply for self-reference. Please follow Easy Run Guide above.
 
@@ -349,7 +357,7 @@ Fine-tunes EfficientNet-B0 on 224×224 sprites using `BCEWithLogitsLoss` for mul
 ```bash
 python Classification/evaluate.py
 ```
-Loads the best checkpoint and prints full metrics. Uses top-k prediction — the model is told how many types each Pokémon has and predicts exactly that many. Saves results and a mistake gallery to `Classification/results/`.
+Loads the best checkpoint and prints full metrics. Uses the inference gap threshold to predict types. Saves results and a mistake gallery to `Classification/results/`.
 
 ---
 
