@@ -224,7 +224,7 @@ Developed the flat-feature classifiers (Decision Tree, Random Forest, SVM) and t
 
 **Nishanth:** 
 Data acquisition: wrote all scripts related to getting Pokerogue and PokeAPI data (Patrick modified them to allow multithreading).
-Suggested the EfficientNet-B0 model; implemented the Scratch CNN; Conduction grey-scale analysis; implemented feature visualization.
+Suggested the EfficientNet-B0 model; implemented the Scratch CNN; Conducted grey-scale analysis; implemented feature visualization.
 
 **Ajmain:** 
 Created the code for splitting our source data into individual sprites and the original code to implement one-hot encoding for types. 
