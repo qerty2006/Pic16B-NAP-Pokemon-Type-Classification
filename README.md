@@ -137,12 +137,7 @@ Also please remember to have your cd set to the home directory!
 python Classification/pipeline.py --split "generation"
 ```
 
-<<<<<<< HEAD
 This essentially runs the pipeline with split set to generation. You can manually change this in the
-=======
-
-This essentially runs pipeline with split set to generation. You can manually change this in the
->>>>>>> f4b0a0da8da977ab3ebb8bd56b63c5c387ed13c4
 section below.
 
 
@@ -252,53 +247,6 @@ The relevant section is given below:
     )
 ```
 
-
-
-
-
-
-
-
-## Model Training
-
-**NOTE** The intructions here are outdated and simply for self-reference. Please follow Easy Run Guide above.
-
-Run from the project root in order. `dataset.py` is a shared module — do not run it directly.
-
-### 0. Sanity Checks
-```bash
-python Classification/dataset.py    # prints index size, type distribution, split counts, batch shape
-#SUPER IMPORTANT: Right now if you make any changes to dataset.py make sure to delete .index_cache.pkl or change Cache_version before running
-#Otherwise, a new dataset comprised of your changes will not be created.
-python Classification/cnn_model.py  # prints input/output shapes and param count
-```
-
-### 1. Baselines
-```bash
-python Classification/baselines.py
-```
-Runs PCA → Decision Tree, Random Forest, and SVM. Saves comparison charts and mistake galleries to `Classification/results/`. These are the floor — the CNN should beat all of them.
-
-### 2. CNN Dry Run
-```bash
-python Classification/train.py --epochs 1
-```
-Verifies the full training pipeline before committing to a long run.
-
-### 3. Full CNN Training
-```bash
-python Classification/train.py --epochs 30
-```
-Fine-tunes EfficientNet-B0 on 224×224 sprites using `BCEWithLogitsLoss` for multi-label type prediction. Saves the best checkpoint by validation F1 to `Classification/checkpoints/best.pt`.
-
-### 4. Evaluate
-```bash
-python Classification/evaluate.py
-```
-Loads the best checkpoint and prints full metrics. Uses top-k prediction — the model is told how many types each Pokémon has and predicts exactly that many. Saves results and a mistake gallery to `Classification/results/`.
-
----
-
 ## Data Flow Example
 
 What happens to a single Bulbasaur sprite from raw file to prediction:
@@ -364,4 +312,44 @@ Created the code for splitting our source data into individual sprites and the o
 Implemented and tested the ViT-B/16 architecture.
 Implemented the inference gap threshold.
 Selected and reported evaluation metrics. Tested with different hyperparameters, augmentations, sample sizes, and data segments.
+
+## OUTDATED: Model Training (USE PIPELINE)
+
+**NOTE** The intructions here are outdated and simply for self-reference. Please follow Easy Run Guide above.
+
+Run from the project root in order. `dataset.py` is a shared module — do not run it directly.
+
+### 0. Sanity Checks
+```bash
+python Classification/dataset.py    # prints index size, type distribution, split counts, batch shape
+#SUPER IMPORTANT: Right now if you make any changes to dataset.py make sure to delete .index_cache.pkl or change Cache_version before running
+#Otherwise, a new dataset comprised of your changes will not be created.
+python Classification/cnn_model.py  # prints input/output shapes and param count
+```
+
+### 1. Baselines
+```bash
+python Classification/baselines.py
+```
+Runs PCA → Decision Tree, Random Forest, and SVM. Saves comparison charts and mistake galleries to `Classification/results/`. These are the floor — the CNN should beat all of them.
+
+### 2. CNN Dry Run
+```bash
+python Classification/train.py --epochs 1
+```
+Verifies the full training pipeline before committing to a long run.
+
+### 3. Full CNN Training
+```bash
+python Classification/train.py --epochs 30
+```
+Fine-tunes EfficientNet-B0 on 224×224 sprites using `BCEWithLogitsLoss` for multi-label type prediction. Saves the best checkpoint by validation F1 to `Classification/checkpoints/best.pt`.
+
+### 4. Evaluate
+```bash
+python Classification/evaluate.py
+```
+Loads the best checkpoint and prints full metrics. Uses top-k prediction — the model is told how many types each Pokémon has and predicts exactly that many. Saves results and a mistake gallery to `Classification/results/`.
+
+---
 
