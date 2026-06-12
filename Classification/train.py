@@ -11,6 +11,7 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from tqdm import tqdm
 
 
+# pyrefly: ignore [missing-import]
 sys.path.insert(0, str(Path(__file__).parent))
 from dataset import gen_stratified_split
 from ViT import build_vit_b16

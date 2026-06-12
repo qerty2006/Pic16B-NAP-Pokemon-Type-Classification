@@ -20,6 +20,7 @@ from typing import cast
 
 # Ensure local classification directory is in python path
 classification_dir = Path(__file__).parent.resolve()
+# pyrefly: ignore [missing-import]
 sys.path.insert(0, str(classification_dir))
 
 from dataset import PokemonSpriteDataset, DEFAULT_TRANSFORM, GRAYSCALE_DEFAULT_TRANSFORM, TYPES, gen_stratified_split, rgba_to_rgb

@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, roc_auc_score
 
+# pyrefly: ignore [missing-import]
 sys.path.insert(0, str(Path(__file__).parent))
 from dataset import TYPES
 

@@ -23,7 +23,9 @@ from torch.utils.data import DataLoader, Subset
 
 # Ensure local classification directory is in python path
 classification_dir = Path(__file__).parent.resolve()
+# pyrefly: ignore [missing-import]
 sys.path.insert(0, str(classification_dir))
+# pyrefly: ignore [missing-import]
 sys.path.insert(0, str(classification_dir / "Patrick"))
 
 from dataset import (

@@ -12,7 +12,7 @@ YOU NEED TO RUNN THESE COMMAND FROM THE ROOT FOLDER OF THE PROJECT
 /Users/nt/miniconda3/bin/python /Users/nt/Documents/github/Pic16B-NAP-Pokemon-Type-Classification/Data-Analysis/pokemo
 n_filtering.py
 
-"Training + post mortem"
+"Training + post mortem analysis"
  /Users/nt/miniconda3/bin/python /Users/nt/Documents/github/Pic16B-NAP-Pokemon-Type-Classification/Classification/pipeline.py --epochs 50 --batch-size 64
  /Users/nt/miniconda3/bin/python /Users/nt/Documents/github/Pic16B-NAP-Pokemon-Type-Classification/Classification/visualize_cnn.py -n 100
 
