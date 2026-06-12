@@ -1,4 +1,4 @@
-#import "jish.typ": *
+#import "@local/jish:0.1.0": *
 
 #show: jish.with(
   title: "PIC 16B Final Project Report",
@@ -44,7 +44,7 @@ Our main goals for the project are described in some detail below:
 + Figure out which models, methodologies, and training data give the best results in terms of the goal stated above, and how the models perform comparative to our own ability to guess Pokémon typing.
 + See what patterns and insights we can gather about Pokémon design choices over generations.
 + What can classifying Pokémon sprites tell us about other multi-label classification tasks?
-
+/*
 == Overview of our Methodology
 Below we outline our complete project pipeline:
 
@@ -56,36 +56,40 @@ Below we outline our complete project pipeline:
 + Established primary evaluation criteria using F1-score, Precision, and Recall to mitigate label class imbalances.
 + Evaluated model performance across various hyperparameters, sample sizes, and image augmentations.
 + Conducted grayscale ablation studies, feature visualizations, and generation-specific split evaluations to analyze model generalizability and feature dependencies.
-
+*/
 #newpage
+
 
 = Data Collection and Processing
 We had to compile two separate datasets to create our training/testing data:
 
 #columns(2)[
-#figure(image("/assets/image.png", width: 40%), alt: "Example of Pokerogue sprite, with a special Pokerogue-exclusive color palette. For our work, we are only using the default color pallets for all Pokémon.", caption: [#set text(10pt); Example of Pokerogue sprite, with a special Pokerogue-exclusive color palette. For our work, we are only using the default color pallets for all Pokémon.])
 
-#colbreak()
-
- Pokerogue has fan made sprites for all 9 generations of Pokémon (except for Pokémon: Legends Z-A Mega Evolutions, which will not be tested in this dataset) in a consistent pixel art format, which contrasts Game Freak’s change to 3d models for their Pokémon sprites since Generation 6 in 2013). While we could have used official Pokémon 3d models from Pokémon Home,  using them would present computational difficulties for us as they are very high quality models.
-]
-
-#columns(2)[
-
-PokeAPI was our source for form and typing information for all  Pokémon we are testing. It’s a RESTful API containing almost all historical information on every Pokémon, but we will be using only the typing information they provide.
+PokeAPI @pokeapi was our source for form and typing information for all  Pokémon we are testing. It’s a RESTful API containing almost all historical information on every Pokémon, but we will be using only the typing information they provide.
 
 We used the requests Python library to get PokeAPI data, and a shell script to pull the Pokerogue Github Repository, isolate the sprites folder, and delete the rest. (We didn’t use Python because we were unsure how to do git pulls and large deletions with Python)
 
 
 #colbreak()
   
-  #figure(image("/assets/image-1.png", width: 80%), alt: "Example of Pokerogue sprite, with a special Pokerogue-exclusive color palette. For our work, we are only using the default color pallets for all Pokémon.", caption: [#set text(10pt);PokeAPI logo])
+  #figure(image("/assets/image-1.png", width: 80%), alt: "Example of Pokerogue sprite, with a special Pokerogue-exclusive color palette. For our work, we are only using the default color palettes for all Pokémon.", caption: [#set text(10pt);PokeAPI logo])
 
 
 Once the sprite sheets were collected, code was implemented to go through them all and split them into sheets based on individual Pokémon. Then, the code would crop individual sprites from the sheet into separate PNGs for the model to use.
 
 
 ]
+
+#columns(2)[
+#figure(image("/assets/image.png", width: 40%), alt: "Example of Pokerogue sprite, with a special Pokerogue-exclusive color palette. For our work, we are only using the default color palettes for all Pokémon.", caption: [#set text(10pt); Example of Pokerogue sprite, with a special Pokerogue-exclusive color palette. For our work, we are only using the default color palettes for all Pokémon.])
+
+#colbreak()
+
+ Pokerogue @pokerogue has fan made sprites for all 9 generations of Pokémon (except for Pokémon: Legends Z-A Mega Evolutions, which will not be tested in this dataset) in a consistent pixel art format, which contrasts Game Freak’s change to 3d models for their Pokémon sprites since Generation 6 in 2013). While we could have used official Pokémon 3d models from Pokémon Home,  using them would present computational difficulties for us as they are very high quality models.
+]
+
+#figure(image("/assets/image-12.png", width:50%), caption: [#set text(10pt); We collect sprite information with a shell script, and type information with the `requests` python library and PokeAPI, and finally combine in when we want to make a dataset for training.] )
+
 
 #pagebreak()
 == Initial Analysis <initial-analysis>
@@ -238,8 +242,10 @@ Calculates metrics and outputs base64-encoded mistake cards into an interactive 
 == Important features:
 As discussed in *@initial-analysis*, the dataset exhibits significant class imbalance, characterized by a large amount of Water and Normal types, while types such as Ghost, Dragon, and Ice are underrepresented. Without corrective measures, the model would exhibit bias toward the majority classes. To mitigate this, a weighted sampler was implemented, forcing samples from underrepresented classes to appear more frequently in training batches and ensuring consistent exposure to minority class features.
 
-== Augmentation
-[Section TBD]
+== Augmentation Tricks
++ Changed orientations using `transforms.RandomHorizontalFlip()`
++ Shifted images around using `transforms.RandomAffine()`
++ Tried to mitigate overfocusing on color and overfitting by using `transforms.ColorJitter()` and changing things like brightness, contrast, and saturation.
 
 == Grayscale Ablation
 
@@ -267,41 +273,263 @@ if (probs[i, sorted_idx[0]] - probs[i, sorted_idx[1]]) < GAP_THRESHOLD:
 This is how the model actually runs without knowing the answer in advance.
 == Evaluation Metrics 
 
-We reported F1, Precision, and Recall instead of just accuracy. On an imbalanced multi-label problem, accuracy alone is a bad proxy. A model that always predicts water can score well on accuracy while having learned nothing. Macro F1 averages across all 18 types equally, so rare types like Ghost actually affect the score.
+We reported F1, Precision, and Recall instead of just accuracy. This is because looking at just accuracy does not always give us a proper idea of a model’s performance and we can get a better idea of what a model is getting correct by looking at multiple measures such as the ones mentioned before. 
 
-=== Custom overlap metrics we added:
+Additionally, for the purpose of our project, focusing too heavily on trying to get exact matches is not fruitful. Checking if the model gets at least one correct gives us a better indication of the model’s ability to predict types based on typing without punishing it too heavily for dataset and structural limitations. 
 
-At Least 1 Right: the model predicted at least one correct type
-2 Types Right (Dual): among dual-type Pokémon specifically, both types correct
-Per-type breakdown: F1/Precision/Recall for each of the 18 types
-Per-generation breakdown: accuracy by generation, as a check for distribution shift
-The generation breakdown tests whether the model learned type-indicative features or just visual patterns specific to older sprite generations.
+We define some unique evaluation metrics we judged our model on below:
+
+
++ At Least 1 Right: the model predicted at least one correct type
++ 2 Types Right (Dual): among dual-type Pokémon specifically, both types correct
++ 2 Types Right (All): among all Pokémon, both types correct (including single-type counting only as single types)
++ Per-type breakdown: F1/Precision/Recall for each of the 18 types
+
 = Results Analysis
-S
+
+
+Below we have the results for the Decision Tree, Random Forest, SVM, and Efficient-NetB0. 
+An important thing to consider here is that what we refer to as “Accuracy” is actually partial accuracy where the model gets at least 1 out of 2 types right.
+
+#figure(table(
+  columns: (auto, auto, auto, auto, auto),
+  align: center + horizon,
+  table.header(
+    [*Model*], [*Accuracy*], [*F1 Score*], [*Precision*], [*Recall*]
+  ),
+  [Naive baseline], [14.91%], [1.44%], [0.83%], [5.56%],
+  [Decision Tree], [18.44%], [12.93%], [14.77%], [12.45%],
+  [Random Forest], [29.10%], [19.89%], [28.18%], [17.72%],
+  [SVM], [31.15%], [19.63%], [24.43%], [18.56%],
+  [Grayscale CNN], [20.23%], [9.99%], [9.68%], [13.55%],
+  [Scratch CNN], [38.15%], [31.61%], [31.92%], [*35.85%*],
+  [*EfficientNet-B0*], [*53%*], [*33.09%*], [*33.59%*], [35.09%]
+), caption:"Performance Comparison of Model (Naive baseline is picking Mono-Water the whole time as it's the most frequent type)"
+)
+
+While we did also test EfficientNet-V2 and ViT-16, we did not create or look at detailed metrics for them as the base F1 score during training and validation was always significantly lower across multiple runs, so we determined it not to be worthwhile in analyzing further. For reference, Efficient-NetV2 and ViT-16 never managed to get to an F1 score of above 30% no matter what we tried, while Efficient-NetB0 was normally above that benchmark. One interesting thing about ViT however, was that it had a much slower rate of improvement compared to EfficientNet and took around 150 epochs to reach its max F1, compared to 30-40 for the other models. 
+
+As can be seen, the EffientNet-B0 performs the best, while the Scratch CNN isn’t far behind. Both have the advantage of being models that preserve shape when running, unlike the other models, who all do some level of compression that doesn’t take into account that their data is a 2D matrix instead of a 1D column vector. 
+
+#figure(box[#image("/assets/image-9.png")
+#image("/assets/image-10.png")], caption: "Convolution comparision with Efficient-NetB0 vs Scratch CNN")
+
+The visulization of Efficient-NetB0's convolutional layers compared to the scratch CNN's also provided some insight on the performance difference. Scratch CNN's layers really just look like random patterns, except for the last one that looks like a border detector. In contrast, Efficient-NetB0's layers look purposely build to scan various parts of the image, which each layer picking up something new, which could explain its better performance (through having more information to use.
+
+Another intersting note about the CNNs is how Efficient-NetB0's signal charts have very little red on them, while Scratch CNN's signal oput is all over the color spectrum. We believe this is a result of the camera-based training data Efficient-NetB0 was originally trained on, giving it a bias for looking for green and blue hues rather than the whole spectrum, and this could be an important factor in why certain types are detected better than others.
+
+
+== Best Ever VS Average Metrics
+
+A very important highlight of our analysis was how varied our results were, even when we did not change anything. For example, when running our EfficientNet-B0 model multiple times, on the exact same parameters and conditions, we got vastly different results ranging from a partial accuracy score of 47% to a best-ever score of 66%. A more detailed overview of our metrics is seen below. 
+
+
+
+#let c(val, disp) = {
+  let color = rgb("#ffffff")
+  if val < 0.3 {
+    color = rgb("#f8d7da") // Soft red
+  } else if val < 0.6 {
+    color = rgb("#fff3cd") // Soft yellow
+  } else {
+    color = rgb("#d4edda") // Soft green
+  }
+  table.cell(fill: color)[#disp]
+}
+
+For our average results we observed:
+-  At Least 1 Right: 53% 
+-  2 Types Right (All):  2% 
+-  2 Types Right (Dual): 3.73% 
+
+
+
+
+
+#figure(
+box()[#table(
+  columns: (auto,) + (1fr,) * 9,
+  align: center + horizon,
+  table.header(
+    [*Type*], [*Grass*], [*Water*], [*Fire*], [*Normal*], [*Rock*], [*Bug*], [*Flying*], [*Ghost*], [*Poison*]
+  ),
+  [*F1*],
+  c(0.6824, "0.6824"), c(0.496, "0.496"), c(0.4412, "0.4412"), c(0.4211, "0.4211"),
+  c(0.4, "0.4"), c(0.3243, "0.3243"), c(0.3077, "0.3077"), c(0.2791, "0.2791"),
+  c(0.2667, "0.2667"),
+  
+  [*Precision*],
+  c(0.5686, "0.5686"), c(0.3735, "0.3735"), c(0.3409, "0.3409"), c(0.3478, "0.3478"),
+  c(0.4444, "0.4444"), c(0.2927, "0.2927"), c(0.381, "0.381"), c(0.2857, "0.2857"),
+  c(0.25, "0.25"),
+  
+  [*Recall*],
+  c(0.8529, "0.8529"), c(0.7381, "0.7381"), c(0.625, "0.625"), c(0.5333, "0.5333"),
+  c(0.3636, "0.3636"), c(0.3636, "0.3636"), c(0.2581, "0.2581"), c(0.2727, "0.2727"),
+  c(0.2857, "0.2857")
+),
+#table(
+  columns: (auto,) + (1fr,) * 9,
+  align: center + horizon,
+  table.header(
+    [*Type*], [*Ground*], [*Psychic*], [*Dragon*], [*Ice*], [*Electric*], [*Dark*], [*Fighting*], [*Fairy*], [*Steel*]
+  ),
+  [*F1*],
+  c(0.2553, "0.2553"), c(0.2319, "0.2319"), c(0.2222, "0.2222"), c(0.1935, "0.1935"),
+  c(0.1765, "0.1765"), c(0.15, "0.15"), c(0.1395, "0.1395"), c(0.0952, "0.0952"),
+  c(0.093, "0.093"),
+  
+  [*Precision*],
+  c(0.3, "0.3"), c(0.25, "0.25"), c(0.2857, "0.2857"), c(0.1875, "0.1875"),
+  c(0.1875, "0.1875"), c(0.12, "0.12"), c(0.1667, "0.1667"), c(0.0714, "0.0714"),
+  c(0.1429, "0.1429"),
+  
+  [*Recall*],
+  c(0.2222, "0.2222"), c(0.2162, "0.2162"), c(0.1818, "0.1818"), c(0.2, "0.2"),
+  c(0.1667, "0.1667"), c(0.2, "0.2"), c(0.12, "0.12"), c(0.1429, "0.1429"),
+  c(0.069, "0.069")
+)],
+caption: [Typical results from the models we generate]
+)
+
+#pagebreak()
+For our best results we observed:
+
+- At Least 1 Right: 66.47% (13% naive baseline)
+- 2 Types Right (All):  21.97% (Single as Single, Dual as Dual. The Exact Accuracy)
+- 2 Types Right (Dual): 40.86% (Out of only dual-type Pokémon)
+
+#figure(
+box()[#table(
+  columns: (auto,) + (1fr,) * 9,
+  align: center + horizon,
+  table.header(
+    [*Metric*], [*Psych.*], [*Grass*], [*Ice*], [*Dark*], [*Rock*], [*Dragon*], [*Water*], [*Ghost*], [*Norm.*]
+  ),
+  [*F1*],
+  c(0.8000, "0.8000"), c(0.7826, "0.7826"), c(0.7778, "0.7778"), c(0.7500, "0.7500"),
+  c(0.6667, "0.6667"), c(0.6471, "0.6471"), c(0.6071, "0.6071"), c(0.5926, "0.5926"),
+  c(0.5714, "0.5714"),
+  
+  [*Precision*],
+  c(0.8235, "0.8235"), c(0.7200, "0.7200"), c(0.7000, "0.7000"), c(0.8571, "0.8571"),
+  c(0.9000, "0.9000"), c(0.5789, "0.5789"), c(0.5152, "0.5152"), c(0.6154, "0.6154"),
+  c(0.5000, "0.5000"),
+  
+  [*Accuracy*],
+  c(0.7778, "0.7778"), c(0.8571, "0.8571"), c(0.8750, "0.8750"), c(0.6667, "0.6667"),
+  c(0.5294, "0.5294"), c(0.7333, "0.7333"), c(0.7391, "0.7391"), c(0.5714, "0.5714"),
+  c(0.6667, "0.6667")
+),
+#table(
+  columns: (auto,) + (1fr,) * 9,
+  align: center + horizon,
+  table.header(
+    [*Metric*], [*Fight.*], [*Steel*], [*Fire*], [*Ground*], [*Electr.*], [*Bug*], [*Flying*], [*Fairy*], [*Pois.*]
+  ),
+  [*F1*],
+  c(0.5455, "0.5455"), c(0.5405, "0.5405"), c(0.5333, "0.5333"), c(0.5161, "0.5161"),
+  c(0.5000, "0.5000"), c(0.4571, "0.4571"), c(0.4138, "0.4138"), c(0.3333, "0.3333"),
+  c(0.1000, "0.1000"),
+  
+  [*Precision*],
+  c(0.7500, "0.7500"), c(0.6667, "0.6667"), c(0.4000, "0.4000"), c(0.7273, "0.7273"),
+  c(0.5000, "0.5000"), c(0.4444, "0.4444"), c(0.6000, "0.6000"), c(0.4000, "0.4000"),
+  c(0.0909, "0.0909"),
+  
+  [*Accuracy*],
+  c(0.4286, "0.4286"), c(0.4545, "0.4545"), c(0.8000, "0.8000"), c(0.4000, "0.4000"),
+  c(0.5000, "0.5000"), c(0.4706, "0.4706"), c(0.3158, "0.3158"), c(0.2857, "0.2857"),
+  c(0.1111, "0.1111")
+)],
+caption: [Results from our best model ever (anomaly)]
+)
+
+Such variance seems really surprising considering nothing really changed except 
+how the dataset was split during the train-test-split. This highlights the fact that without a large and diverse dataset, there is a big risk of result variance just from what data is used to train and what is used to test.
+
+It is also interesting to note that even accounting for the variance, some types just seem to be easier for the model to predict such as grass, water, and rock, whereas other types like poison, fairy, and ghost seem to have much lower accuracies and precisions. This can probably be attributed to certain types (like typical elemental types) having more telling color-based designs, whereas the more exotic types, like Dragons, Ghosts, and Fairies, have more abstract designs based on famous monsters or folktales.
+
+== Results using different augmentations and sample sizes
+
+Most augmentations did not actually lead to any meaningful changes in our average metrics. The most surprising one was perhaps ColorJitter where changing brightness, contrast, and even saturation still yielded nothing significantly different. We hypothesize that due to the existing weights in the pre-trained model, perhaps such changes on a relatively much smaller dataset do not have too much of an effect. However, we see later that completely removing color does have an effect, so perhaps even with moderate levels of saturation, the model can make out the broader colors in the image.
+
+The relevant line of code is given below: 
+
+#block(
+  fill: luma(240),
+  inset: 8pt,
+  radius: 4pt,
+)[
+    #raw("transforms.ColorJitter(brightness=0.15, contrast=0.15)", lang: "python") 
+]
+
+Moving on to sample sizes, we observed that having a bigger variety of data was usually helpful. Using the full sample size of unique Pokémon consistently gave us better results. After using the original versions of each Pokémon, we also added variants (specifically those without new typings, the ones with new typings are always in the dataset) of the different Pokémon to increase our dataset variety further in a meaningful way. However, adding too many variants would sometimes lead to a cluster of the same Pokémon being tested which skewed results, so we limited variants to 3 per Pokémon.
+
+While having variety like this helped, trying to artificially increase sample size by just reusing almost identical sprites did not change our results. Thus, we can conclude that in terms of sample size, the uniqueness of the samples seems to matter more than just the actual quantity.
+
+== Greyscale analysis
+
+When we applied greyscaling, we saw a massive drop in accuracy to only 20% partially correct, which was expected. However, looking closely at the results below, we can see that the model actually does seem to be able to read features well.
+
+#columns(2)[#figure(
+  image("/assets/image-12.png", width: 70%),
+  caption: "Greyscale analysis, as seen in our in-class presentation"
+)
+
+#colbreak()
+The model most likely predicts the first one as Grass because you can actually see the Pokémon within a patch of grass. Similarly, the second Pokémon is assigned Flying because it appears to have wings. While the third seems to be off, it does kind of look like a small bug, especially one with needles/spiky features, which are common for Poison types.]
+
+== Generation-Wise Split Analysis (Incomplete due to lack of time for adequate training)
+
+For the final part of our analysis we tested how the results changed if we trained and tested or model on different generations of Pokémon. For this purpose, 4 segmentations were tried:
+
+- Segment 1: Training done on gen 1-3, tested on 4-6.
+- Segment 2: Training done on gen 1-8, tested on 9.
+- Segment 3: Training done on gen 3-9, tested on 1-2.
+- Segment 4: Training done on gen 2-6, tested on 1.
+
+The purpose of Segment 1 was to analyze how the model performs given the same number of generations for training and testing. This yielded really poor results, with F1 falling by 10% and accuracy also falling by a few percentage points. 
+
+Segment 2 is really similar to just training on the entire dataset, but the model is not given the last generation. This made no difference as the model seems to have gotten enough training to predict generation 9 and the small number of Pokémon eliminated makes little difference.
+
+Segment 3 is designed to check how the model predicts the simpler designs of early generations after being trained on more complex ones. It seemed to be performing very slightly better by a few percentage points, although given the possibility of the variance we cannot say for certain that performance was surely better. 
+
+Segment 4 went back to being the same as the added benefit from being tested on simpler types, and being trained on closer generations, was cancelled out by having a lower dataset.
+
+For this section, we did not have ample time to conduct a detailed analysis given the data limitations and lack of means to determine causal inference, and thus no conclusive statements can be made without further research. However, our analysis so far suggests that there may actually be some difference in design complexity, and thus model performance, across generations. Given more time, like presenting this at a PIC talk, we would have discussed these ideas at length.
 
 
 = Conclusion
-[Section TBD]
+Overall, our models seemed to perform relatively well given how hard the task of predicting types of just design actually is. When we started this project, we took inspiration from 2 projects done before. 
+
+First was Tariq, a then student at Stanford who made this project for his Deep Learning Class. Building on top of his idea of using a CNN, our unique contributions in the dataset we used, the way we turned model confidences to predictions, and other augmentations, yielded a much better F1 score of around 33% compared to his 24% @Zahroof2019. 
+
+Our second reference point was a project on this topic by Garrett Hardin, which we came across on a post on Medium. Unfortunately, he mainly tested and trained his model on just gen 1 which means comparing our results to his is not meaningful. However, we have started to and want to build upon his generation wise splitting further to see what more we can learn @Hardin2023.
+
 
 
 
 = Member Contributions
 
-+ Patrick: 
-  Developed the flat-feature classifiers (Decision Tree, Random Forest, SVM) and the initial EfficientNet-B0 pipeline; 
-  designed the weighted sampler and co-designed the inference gap threshold; 
-+ Nishanth: 
-  Data acquisition: wrote all scripts related to getting Pokerogue and PokeAPI data (Patrick modified them to allow multithreading)
-  Suggested the EfficientNet-B0 model; implemented the Scratch CNN.
-+ Ajmain: 
-  Implemented the ViT-B/16 architecture; 
-  implemented the inference gap threshold, 
-  selected and reported evaluation metrics.
-
+- Nishanth: 
+  - Data acquisition: wrote all scripts related to getting Pokerogue and PokeAPI data (Patrick modified them to allow multithreading)
+  - Suggested the EfficientNet-B0 model; implemented the Scratch CNN.
+  - Cowrote analysis with Ajmain, wrote about the results of our project that note the importance of certain scientific practices.
+- Ajmain: 
+  - Implemented the ViT-B/16 architecture; 
+  - Implemented the inference gap threshold, 
+  - Selected and reported evaluation metrics.
+  - Cowrote analysis with Nishanth
+- Patrick: 
+  - Developed the flat-feature classifiers (Decision Tree, Random Forest, SVM) and the initial EfficientNet-B0 pipeline; 
+  - Designed the weighted sampler and co-designed the inference gap threshold;
 
 = References:
 PokéRogue
 PokeAPI 
+
+#bibliography("final.bib")
 
 
 

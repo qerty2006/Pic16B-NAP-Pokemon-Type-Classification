@@ -17,7 +17,7 @@ from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, get_gener
 from ViT import build_vit_b16
 from dataset import  gen_gen_split
 import generate_report
-from cnn_model import build_model
+from cnn_model import build_model, build_scratch_model
 
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints" / "best.pt"
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -251,15 +251,20 @@ def save_mistake_examples(y_true, y_pred, y_probs, test_paths, n=30, n_test=None
 
 def main():
     checkpoint_dir = Path(__file__).parent / "checkpoints"
-    checkpoint_path = checkpoint_dir / "best.pt"
-    if not checkpoint_path.exists():
-        if (checkpoint_dir / "best_color.pt").exists():
-            checkpoint_path = checkpoint_dir / "best_color.pt"
-        elif (checkpoint_dir / "best_grayscale.pt").exists():
-            checkpoint_path = checkpoint_dir / "best_grayscale.pt"
+    
+    # Check if a custom checkpoint path was passed as CLI argument
+    if len(sys.argv) > 1:
+        checkpoint_path = Path(sys.argv[1])
+    else:
+        checkpoint_path = checkpoint_dir / "best.pt"
+        if not checkpoint_path.exists():
+            if (checkpoint_dir / "best_color.pt").exists():
+                checkpoint_path = checkpoint_dir / "best_color.pt"
+            elif (checkpoint_dir / "best_grayscale.pt").exists():
+                checkpoint_path = checkpoint_dir / "best_grayscale.pt"
 
     if not checkpoint_path.exists():
-        print(f"No checkpoint found at {checkpoint_path} or best_color.pt/best_grayscale.pt. Run train.py/pipeline.py first.")
+        print(f"No checkpoint found at {checkpoint_path}. Run train.py/pipeline.py first.")
         sys.exit(1)
 
     if torch.cuda.is_available():
@@ -273,8 +278,15 @@ def main():
     ckpt = torch.load(checkpoint_path, map_location=device)
     print(f"Loaded checkpoint {checkpoint_path.name} from epoch {ckpt['epoch']} (val F1: {ckpt['val_f1']:.4f})")
 
-    #model = build_vit_b16(num_classes=len(TYPES), freeze_backbone=True).to(device)
-    model = build_model(num_classes=len(TYPES)).to(device)
+    # Detect model type (EfficientNet or Scratch CNN)
+    model_type = "efficientnet"
+    if "scratch" in checkpoint_path.name.lower() or "scratch" in ckpt.get("args", {}).get("model_type", ""):
+        model_type = "scratch"
+        
+    if model_type == "scratch":
+        model = build_scratch_model(num_classes=len(TYPES)).to(device)
+    else:
+        model = build_model(num_classes=len(TYPES)).to(device)
     model.load_state_dict(ckpt["model_state"])
 
     dataset = PokemonSpriteDataset()
