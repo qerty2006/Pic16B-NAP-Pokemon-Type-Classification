@@ -132,9 +132,13 @@ Below are some important parameters and factors you can switch around as you lik
 ways. Note that you can either change it manually in each section or, our suggestion, run it on the command line
 with the relevant flag followed by the parameter value you want. For example:
 
+Also please remember to have your cd set to the folder within which pipeline.py is in for it to work.
+To make sure, copy the folder path and set cd to that folder path.
+
 ```bash
 python pipeline.py --split "generation"
 ```
+
 
 This essentially runs pipeline with split set to generation. You can manually change this in the
 section below.
