@@ -259,6 +259,8 @@ The relevant section is given below:
 
 ## Model Training
 
+**NOTE** The intructions here are outdated and simply for self-reference. Please follow Easy Run Guide above.
+
 Run from the project root in order. `dataset.py` is a shared module — do not run it directly.
 
 ### 0. Sanity Checks
