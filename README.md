@@ -137,7 +137,12 @@ Also please remember to have your cd set to the home directory!
 python Classification/pipeline.py --split "generation"
 ```
 
+<<<<<<< HEAD
 This essentially runs the pipeline with split set to generation. You can manually change this in the
+=======
+
+This essentially runs pipeline with split set to generation. You can manually change this in the
+>>>>>>> f4b0a0da8da977ab3ebb8bd56b63c5c387ed13c4
 section below.
 
 
