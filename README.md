@@ -8,7 +8,7 @@ Classifies Pokémon types from sprite images using traditional ML baselines and 
 
 This project uses large data files that are not committed to the repo. You will need **~1GB free** to run everything comfortably. If you're running low:
 
-- Delete `Data-Acquisition/pokerogue_sprites/` after running `sprite_splitter.py` — the raw sprite sheets are no longer needed once split
+- Delete `Classification/pokerogue_sprites/` after running `sprite_splitter.py` — the raw sprite sheets are no longer needed once split
 - Clear the PyTorch model cache: `Remove-Item -Recurse -Force "$env:USERPROFILE\.cache\torch"` (it re-downloads automatically when needed)
 - Run Windows Disk Cleanup: `cleanmgr` in PowerShell
 
@@ -16,17 +16,18 @@ This project uses large data files that are not committed to the repo. You will 
 
 ## Quick Start
 
+First set the cd of the terminal to the home directory and then run. This is important!
+
 ```bash
 bash install_hooks.sh          # one-time setup — installs pre-push safety check
 pip install -r requirements.txt
 bash Data-Acquisition/setup_pokerogue_assets.sh
 python Data-Acquisition/sprite_splitter.py
-python Data-Acquisition/pokeapi_data.py
+python Data-Acquisition/pokeapi_data_threaded.py
 python Classification/dataset.py      # sanity check
 python Classification/baselines.py
 python Classification/train.py --epochs 30
 python Classification/evaluate.py
-python Classification/generate_report.py  # results/index.html
 ```
 
 ---
@@ -88,17 +89,15 @@ bash Data-Acquisition/setup_pokerogue_assets.sh
 python Data-Acquisition/sprite_splitter.py
 ```
 
-> **Note:** Make sure that the cd is set to the Data Acquisition folder (in git bash) before you run the bash prompt so that it downloads the prompts to that folder. 
+> **Note:** Make sure you run the setup script from the project root directory so that it downloads the sprites into `Classification/pokerogue_sprites/` correctly.
 
-> **Note:** If the splitter can't find `pokerogue_sprites/`, manually move it into `Data-Acquisition/`. The script checks both the project root and `Data-Acquisition/` automatically.
+> **Note:** The splitter script automatically searches both `Classification/pokerogue_sprites/` and `Data-Acquisition/pokerogue_sprites/` for the raw assets.
 
 ### 5. Fetch Pokémon Data
 
 ```bash
-python Data-Acquisition/pokeapi_data.py
+python Data-Acquisition/pokeapi_data_threaded.py
 ```
-
-> **Faster option (experimental):** `python Data-Acquisition/pokeapi_data_threaded.py` — ~20x speedup using threading. Re-run safe. May occasionally hit PokeAPI rate limits; failed entries are printed but won't stop the run.
 
 ---
 
@@ -123,20 +122,22 @@ Outputs:
 
 ## Easy Run Guide
 
-Once all the data is extracted and set-up is complete, you can run "pipeline.py" to begin running the model. 
-"pipeline.py" essentially compiles all the important functions into one for easy use. While we still keep
-other files so we can work on it in the future, please just run pipeline.py as it has the most up-to-date
+Once all the data is extracted and set-up is complete, you can run `Classification/pipeline.py` to begin running the model. 
+`Classification/pipeline.py` essentially compiles all the important functions into one for easy use. While we still keep
+other files so we can work on it in the future, please just run `Classification/pipeline.py` as it has the most up-to-date
 and clean code.
 
 Below are some important parameters and factors you can switch around as you like to test the model in various
 ways. Note that you can either change it manually in each section or, our suggestion, run it on the command line
 with the relevant flag followed by the parameter value you want. For example:
 
+Also please remember to have your cd set to the home directory!
+
 ```bash
-python pipeline.py --split "generation"
+python Classification/pipeline.py --split "generation"
 ```
 
-This essentially runs pipeline with split set to generation. You can manually change this in the
+This essentially runs the pipeline with split set to generation. You can manually change this in the
 section below.
 
 
@@ -255,6 +256,8 @@ The relevant section is given below:
 
 ## Model Training
 
+**NOTE** The intructions here are outdated and simply for self-reference. Please follow Easy Run Guide above.
+
 Run from the project root in order. `dataset.py` is a shared module — do not run it directly.
 
 ### 0. Sanity Checks
@@ -288,12 +291,6 @@ Fine-tunes EfficientNet-B0 on 224×224 sprites using `BCEWithLogitsLoss` for mul
 python Classification/evaluate.py
 ```
 Loads the best checkpoint and prints full metrics. Uses top-k prediction — the model is told how many types each Pokémon has and predicts exactly that many. Saves results and a mistake gallery to `Classification/results/`.
-
-### 5. Generate Report
-```bash
-python Classification/generate_report.py
-```
-Combines CNN and baseline results into a single `Classification/results/index.html` — comparison table across all models, explanation of how each model works, and links to all output galleries. Requires both `evaluate.py` and `baselines.py` to have been run first.
 
 ---
 
@@ -343,10 +340,9 @@ All outputs saved to `Classification/results/`.
 
 | File | Description |
 |---|---|
-| `index.html` | Single-page report — model comparison table, how each model works, links to all outputs. |
 | `baselines_comparison.html` | Grouped bar chart comparing all three baseline models across all metrics. |
 | `baselines_confusion_matrices.html` | Side-by-side confusion matrix heatmaps for each baseline. Rows = true type, cols = predicted. |
-| `baselines_metrics.json` | Raw baseline metrics (accuracy, F1, precision, recall) — read by `generate_report.py`. |
+| `baselines_metrics.json` | Raw baseline metrics (accuracy, F1, precision, recall). |
 | `mistakes_<Model>.html` | Gallery of misclassified sprites. Red border = fully wrong, orange = partial (1 of 2 types correct for dual-type Pokémon). CNN version sorted by confidence. |
 | `y_true.npy` / `y_pred.npy` / `y_probs.npy` | Ground truth (multi-hot), predictions (multi-hot), and sigmoid probabilities from CNN test set. |
 

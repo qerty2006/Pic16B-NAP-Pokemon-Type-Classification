@@ -10,7 +10,13 @@
   date: "12th June 2026"
 )
 #set text(font: "Times New Roman", 12pt)
-#set heading(numbering: "1.")
+#set heading(numbering: (..args) => {
+  let nums = args.pos()
+  if nums.len() > 0 {
+    nums.at(0) -= 1
+  }
+  nums.map(str).join(".")
+})
 #set enum(numbering: "1.")
 #set par(
   first-line-indent: 1em,
@@ -20,7 +26,7 @@
 
 #outline(indent: 1.5em)
 #pagebreak()
-
+= #link("https://github.com/qerty2006/Pic16B-NAP-Pokemon-Type-Classification", "Link to Github Repository")
 = Introduction
  Pokémon is a Japanese media franchise, created and owned by the company Game Freak, based on cartoonish creatures by the titular name. 
 

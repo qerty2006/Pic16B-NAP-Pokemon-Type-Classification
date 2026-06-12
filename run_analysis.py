@@ -8,7 +8,7 @@ def main():
     # 1. Check for data
     if not os.path.exists("pokeapi_data"):
         print("\n[1/2] Data not found. Running data acquisition...")
-        subprocess.run([sys.executable, "Data-Acquisition/pokeapi_data.py"], check=True)
+        subprocess.run([sys.executable, "Data-Acquisition/pokeapi_data_threaded.py"], check=True)
     else:
         print("\n[1/2] Data directory 'pokeapi_data' found. Skipping acquisition.")
     

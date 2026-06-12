@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 from dataset import PokemonSpriteDataset, TYPES, gen_stratified_split, get_generation, parse_folder_id
 from ViT import build_vit_b16
 from dataset import  gen_gen_split
-import generate_report
 from cnn_model import build_model, build_scratch_model
 
 CHECKPOINT_PATH = Path(__file__).parent / "checkpoints" / "best.pt"
@@ -317,7 +316,6 @@ def main():
     print("\nGenerating mistake gallery...")
     save_mistake_examples(y_true, y_pred, y_probs, test_paths, n_test=len(test_idx), is_grayscale=is_grayscale)
     print(f"\nResults saved to {RESULTS_DIR}/")
-    generate_report.main()
 
 
 if __name__ == "__main__":
