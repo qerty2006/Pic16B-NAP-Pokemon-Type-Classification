@@ -18,6 +18,9 @@
 )
 #show figure: set text(size: 10pt)
 
+#outline(indent: 1.5em)
+#pagebreak()
+
 = Introduction
  Pokémon is a Japanese media franchise, created and owned by the company Game Freak, based on cartoonish creatures by the titular name. 
 
@@ -26,8 +29,7 @@ Specifically in the video games and trading card game, different Pokémon have d
 When encountering a Pokémon in the games, knowing the typing of the Pokémon you are facing can be the difference between dealing enough damage to knock a Water-Ground Pokémon out with a single Grass type move, or dealing no damage with an electric type move. However, knowing the typing of all 1025 Pokémon can be a daunting task, especially when all you are provided is an image of the Pokémon (and its name depending on the game). 
 
 == Problem Statement
-Knowing the typing of Pokémon gives you a significant advantage in how the game is played, but doing so manually with limited information is not that easy. With over 1000 Pokémon divided into 18 types, even Pokémon within the same type can be difficult to always identify correctly based on human intuition alone.  However, being a game for kids to play means there should be some amount of intuitiveness that can be used to figure a certain Pokémon’s typing. With newer generations introducing more and more complex designs however, this claim needs to be tested, especially due to the fact that a lot of Pokémon still remain hard to categorize for new players entering the franchise. Thus, a model which can efficiently identify Pokémon by design not only gives newer players an advantage and easier entry into the game, but can also give us an indication as to how intentional the design choices truly are.
-#newpage
+
 Below we define some of the key problems and questions we want to tackle that motivated the creation of this project:
 
 + Can a model be trained to identify the typing of a Pokémon solely through images of that Pokémon?
@@ -86,7 +88,7 @@ Once the sprite sheets were collected, code was implemented to go through them a
 ]
 
 #pagebreak()
-== Initial Analysis
+== Initial Analysis <initial-analysis>
 
 #columns(2)[#figure(image("/assets/image-2.png", width: 100%), caption: [#set text(10pt); 3D heat map of all 171 type combinations as a symmetric matrix (Water-Flying identical to Flying-Water). Bright colors means more representatives, red means no representatives.])
 #colbreak()
@@ -147,76 +149,120 @@ Everything before that layer keeps its ImageNet weights and trains end-to-end. T
 EfficientNet-B0 was originally trained for identifying real life animals and objects, but we are instead using it to identify cartoon-style characters. To quantify the usefulness of this pretrained model, we also are using an untrained CNN as a competitor, which otherwise works identically to EfficientNet-B0.
 === ViT-B/16 
 #figure(image("/assets/image-8.png"), caption: [#set text(10pt); Pipeline of ViT-B/16])
+\Vision Transformers cut images into 16x16 patches and put it through multiple transformer layers using special classification tokens for prediction. These tokens aggregate information from all the image patches and then use it all to make a prediction in the final layer. ViT has the advantage of being able to look at all aspects of an image and make a more calculated guess, and is likely to learn more from the given data and have less inductive bias. Like EfficientNet B0, ViT is also pre-trained on the massive dataset of "ImageNet-21k," also giving it a lot of data to go off of. 
+
+Similar to the Vision Transformer, we only altered the final layer, so pre-train weights were applied from the Image-Net weights and trains as well.
+
+For ViT we tried freezing and not freezing the backbone to see how it performs if we attempt to keep the original weights stable vs changing it in our own training loops.
+
 
 = Training Regimen
 For training we followed these steps:
-Dataset Split & Setup: 
-Generates the split indices, ensuring all sprites for a specific Pokémon ID stay together
-`dataset = PokémonSpriteDataset()
-# Split strategy selection
-if args.split == "stratified":
-    train_idx, val_idx, test_idx = gen_stratified_split(
-        dataset.index, val_frac=args.val_frac, test_frac=args.test_frac, seed=args.seed
-    )` 
-Model Training Loop
-Initializes the model architecture, weights sampler, and trains using Binary Cross Entropy loss:
-`# Create loader & build model
-sampler = make_weighted_sampler(dataset, train_idx)
-train_loader = DataLoader(Subset(dataset, train_idx), batch_size=args.batch_size, sampler=sampler)
-model = build_model(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
++ Dataset Split & Setup: 
+    Generates the split indices, ensuring all sprites for a specific Pokémon ID stay together
 
-# Epoch loop with hotswapping transforms
-for epoch in range(1, epochs + 1):
-    dataset.transform = active_train_tf
-    train_m = run_epoch2(model, train_loader, criterion, optimizer, device, train=True)
-    
-    dataset.transform = active_eval_tf
-    val_m   = run_epoch2(model, val_loader,   criterion, optimizer, device, train=False)
-`
-Checkpoints:
+  #set text(8pt)
+  #block(
+  fill: luma(240),
+  inset: 8pt,
+  radius: 4pt,
+  raw("dataset = PokémonSpriteDataset()
+  # Split strategy selection
+  if args.split == \"stratified\":
+      train_idx, val_idx, test_idx = gen_stratified_split(
+          dataset.index, val_frac=args.val_frac, test_frac=args.test_frac, seed=args.seed
+      )
+  Model Training Loop
+  Initializes the model architecture, weights sampler, and trains using Binary Cross Entropy loss:
+  `# Create loader & build model
+  sampler = make_weighted_sampler(dataset, train_idx)
+  train_loader = DataLoader(Subset(dataset, train_idx), batch_size=args.batch_size, sampler=sampler)
+  model = build_model(num_classes=len(TYPES), freeze_backbone=args.freeze_backbone).to(device)
+
+  # Epoch loop with hotswapping transforms
+  for epoch in range(1, epochs + 1):
+      dataset.transform = active_train_tf
+      train_m = run_epoch2(model, train_loader, criterion, optimizer, device, train=True)
+      
+      dataset.transform = active_eval_tf
+      val_m = run_epoch2(model, val_loader, criterion, optimizer, device, train=False)", lang: "python"),
+    width: 100%
+  )
+  #set text(10pt)
+
++ Checkpoints:
 	If the F1 score for the validation set improved between epochs, we save the new model:
-`if val_m["f1"] > best_f1:
-    best_f1 = val_m["f1"]
-    torch.save({
-        "epoch": epoch,
-        "model_state": model.state_dict(),
-        "val_f1": best_f1,
-        "args": vars(args),
-    }, checkpoint_path)` 
-Inference:
-Since the model returns a series of confidence levels, we apply some hard coded logic to determine the single type/dual type quality that the model is telling us:
-`for i in range(len(probs)):
-    sorted_idx = np.argsort(probs[i])[::-1]
-    # Guarantee absolute highest guess
-    preds[i, sorted_idx[0]] = 1
-    # Predict second type if confidence is within GAP_THRESHOLD
-    if (probs[i, sorted_idx[0]] - probs[i, sorted_idx[1]]) < 0.25:
-        preds[i, sorted_idx[1]] = 1`
+
+  #set text(10pt)
+    #block(
+    fill: luma(240),
+    inset: 8pt,
+    radius: 4pt,
+    raw("if val_m[\"f1\"] > best_f1:
+      best_f1 = val_m[\"f1\"]
+      torch.save({
+          \"epoch\": epoch,
+          \"model_state\": model.state_dict(),
+          \"val_f1\": best_f1,
+          \"args\": vars(args),
+      }, checkpoint_path)",
+      lang: "python"),
+      width: 100%
+    )
+    #set text(10pt)
+
++ Inference:
+  Since the model returns a series of confidence levels, we apply some hard coded logic to determine the single type/dual type quality that the model is telling us:
+
+  #set text(10pt)
+  #block(
+  fill: luma(240),
+  inset: 8pt,
+  radius: 4pt,
+  raw("for i in range(len(probs)):
+      sorted_idx = np.argsort(probs[i])[::-1]
+      # Guarantee absolute highest guess
+      preds[i, sorted_idx[0]] = 1
+      # Predict second type if confidence is within GAP_THRESHOLD
+      if (probs[i, sorted_idx[0]] - probs[i, sorted_idx[1]]) < 0.25:
+          preds[i, sorted_idx[1]] = 1", lang: "python"),
+    width: 100%
+  )
+  #set text(10pt)
+
+
 
 Metrics Printing & Visualization HTML Gallery
 Calculates metrics and outputs base64-encoded mistake cards into an interactive HTML report:
 
 == Important features:
-The dataset exhibits significant class imbalance, characterized by a predominance of Water and Normal types, while types such as Ghost, Dragon, and Ice are underrepresented. Without corrective measures, the model tends to exhibit bias toward the majority classes. To mitigate this, a weighted sampler was implemented. Each training sample is assigned a weight inversely proportional to the frequency of its rarest type. Consequently, samples from underrepresented classes appear more frequently in training batches, ensuring consistent exposure to minority class features.
+As discussed in *@initial-analysis*, the dataset exhibits significant class imbalance, characterized by a large amount of Water and Normal types, while types such as Ghost, Dragon, and Ice are underrepresented. Without corrective measures, the model would exhibit bias toward the majority classes. To mitigate this, a weighted sampler was implemented, forcing samples from underrepresented classes to appear more frequently in training batches and ensuring consistent exposure to minority class features.
 
 == Augmentation
 [Section TBD]
 
 == Grayscale Ablation
-[Section TBD]
+
+To evaluate the extent to which the deep learning model relies on color signatures (such as green for Grass, blue for Water, or red for Fire) versus structural shapes and silhouettes, we conducted a grayscale ablation experiment. The input sprites were converted to three-channel grayscale tensors using `GRAYSCALE_TRAIN_TRANSFORM`. This ablation isolates structural and contour-based visual indicators from color features to evaluate their respective contributions to classification accuracy.
 == Inference — Gap Threshold
-=== Inference Gap Threshold Design
 
-Originally, we preset the amount of labels the model would label an image with; when testing, we would tell the model if it was one or two types, and we would take the top 1 or 2 accordingly. However, this makes the fatal assumption that we would already know how many types a Pokémon would have, which would defeat the point of letting the model figure it out.
-Instead, we have preset a difference threshold, which utilizes the assumption that if the model thinks a Pokémon has more than one type, those secondary types would have similar confidence values to the primary type it wants to label the image with. As such, if the model’s second option’s confidence value is with 25% of the first type’s, then the image is classified as a dual type:
+Originally, we preset the amount of labels the model would label an image with; when testing, we would tell the model if it was one or two types, and we would take the top 1 or 2 accordingly. However, this makes the assumption that we would already know how many types a Pokémon would have, which would defeat the purpose of letting the model figure it out.
 
-`# 1. Always lock in the absolute #1 highest guess 
-                preds[i, sorted_idx[0]] = 1
+Instead, we have preset a difference threshold, which utilizes the assumption that if the model thinks a Pokémon has more than one type, those secondary types would have similar confidence values to the primary type it wants to label the image with. As such, if the model’s second option’s confidence value is within 25% of the first type’s, then the image is classified as a dual type:
 
-                # 2. Check if the 2nd highest guess is within the gap threshold
-                if (probs[i, sorted_idx[0]] - probs[i, sorted_idx[1]]) < GAP_THRESHOLD:
-                    preds[i, sorted_idx[1]] = 1` 
+#block(
+  fill: luma(240),
+  inset: 8pt,
+  radius: 4pt,
+  raw("
+# 1. Always lock in the absolute #1 highest guess 
+preds[i, sorted_idx[0]] = 1
 
+# 2. Check if the 2nd highest guess is within the gap threshold
+if (probs[i, sorted_idx[0]] - probs[i, sorted_idx[1]]) < GAP_THRESHOLD:
+    preds[i, sorted_idx[1]] = 1", lang: "python"),
+  width: 100%
+)
 
 This is how the model actually runs without knowing the answer in advance.
 == Evaluation Metrics 
@@ -241,13 +287,16 @@ S
 
 = Member Contributions
 
-Patrick: 
-Developed the flat-feature classifiers (Decision Tree, Random Forest, SVM) and the initial EfficientNet-B0 pipeline; designed the weighted sampler and co-designed the inference gap threshold; 
-Nishanth: 
-Data acquisition: wrote all scripts related to getting Pokerogue and PokeAPI data (Patrick modified them to allow multithreading)
-Suggested the EfficientNet-B0 model; implemented the Scratch CNN.
-
-Ajmain: Implemented the ViT-B/16 architecture; implemented the inference gap threshold, selected and reported evaluation metrics.
++ Patrick: 
+  Developed the flat-feature classifiers (Decision Tree, Random Forest, SVM) and the initial EfficientNet-B0 pipeline; 
+  designed the weighted sampler and co-designed the inference gap threshold; 
++ Nishanth: 
+  Data acquisition: wrote all scripts related to getting Pokerogue and PokeAPI data (Patrick modified them to allow multithreading)
+  Suggested the EfficientNet-B0 model; implemented the Scratch CNN.
++ Ajmain: 
+  Implemented the ViT-B/16 architecture; 
+  implemented the inference gap threshold, 
+  selected and reported evaluation metrics.
 
 
 = References:
