@@ -129,7 +129,16 @@ other files so we can work on it in the future, please just run pipeline.py as i
 and clean code.
 
 Below are some important parameters and factors you can switch around as you like to test the model in various
-ways:
+ways. Note that you can either change it manually in each section or, our suggestion, run it on the command line
+with the relevant flag followed by the parameter value you want. For example:
+
+```bash
+python pipeline.py --split "generation"
+```
+
+This essentially runs pipeline with split set to generation. You can manually change this in the
+section below.
+
 
 ```bash
  parser.add_argument(
@@ -177,6 +186,69 @@ You can alter test and validation fractions in the sections given below:
         help="Fraction of test samples for stratified split (default: 0.15)"
     )
 ```
+
+Some other model parameters you can change can be altered in the sections below (along with the
+option to use scratch CNN instead of EfficientNet-B0.
+
+```bash
+
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="efficientnet",
+        choices=["efficientnet", "scratch"],
+        help="Model architecture: 'efficientnet' (default) or 'scratch'"
+    )
+
+    parser.add_argument(
+        "--seed", 
+        type=int, 
+        default=42, 
+        help="Random seed for splitting data (default: 42)"
+    )
+    
+    # Training configurations
+    parser.add_argument(
+        "--epochs", 
+        type=int, 
+        default=30, 
+        help="Number of epochs to train (default: 30)"
+    )
+    parser.add_argument(
+        "--batch-size", 
+        type=int, 
+        default=32, 
+        help="Batch size (default: 32)"
+    )
+    parser.add_argument(
+        "--lr", 
+        type=float, 
+        default=1e-4, 
+        help="Learning rate (default: 1e-4)"
+    )
+    parser.add_argument(
+        "--freeze-backbone", 
+        action="store_true", 
+        help="Freeze backbone and only train the classifier head"
+    )
+```
+
+Finally, incase you want to check with greyscale, you can just run the code in the command line with
+--greyscale
+
+The relevant section is given below:
+
+```bash
+ parser.add_argument(
+        "--grayscale",
+        action="store_true",
+        help="Convert the dataset to grayscale before passing it to the model"
+    )
+```
+
+
+
+
 
 
 
