@@ -522,15 +522,19 @@ While Pokémon identification may not be a very useful task in the real world, o
 - Nishanth: 
   - Data acquisition: wrote all scripts related to getting Pokerogue and PokeAPI data (Patrick modified them to allow multithreading)
   - Suggested the EfficientNet-B0 model; implemented the Scratch CNN.
+  - Conducted Grayscale analysis and convolution feature visualizations.
   - Cowrote analysis with Ajmain, wrote about the results of our project that note the importance of certain scientific practices.
-- Ajmain: 
+- Ajmain:
+  - Created the code for splitting our source data into individual sprites and the original code to implement one-hot encoding for types.
   - Implemented the ViT-B/16 architecture; 
   - Implemented the inference gap threshold, 
   - Selected and reported evaluation metrics.
+  - Tested with different hyperparameters, augmentations, sample sizes, and data segments
   - Cowrote analysis with Nishanth
 - Patrick: 
   - Developed the flat-feature classifiers (Decision Tree, Random Forest, SVM) and the initial EfficientNet-B0 pipeline; 
-  - Designed the weighted sampler and co-designed the inference gap threshold;
+  - Designed the weighted sampler and co-designed the inference gap threshold
+
 
 = References:
 PokéRogue
